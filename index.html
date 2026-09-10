@@ -20,6 +20,9 @@
   .splitopts label { margin: 0; }
   th.sortable { cursor: pointer; user-select: none; }
   .tagcell { display: flex; align-items: center; gap: 4px; }
+  .drag { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; color: #666; padding: 0 2px; flex: none; }
+  .drag.off { color: #ccc; cursor: default; }
+  tr.dragging { opacity: 0.4; }
   .gi { font-size: 1.25em; line-height: 1; color: #000; width: 1.3em; text-align: center; flex: none; }
   .tagcell select { flex: 1; min-width: 0; }
   td, th { border: 1px solid #999; padding: 2px 4px; text-align: left; }
@@ -141,6 +144,7 @@ const tagIndex = (tags, name) => tags.findIndex(t => t[1] === name);
 // monochrome text glyphs (U+FE0E forces text presentation where a font would otherwise pick the colour emoji)
 const GROUP_ICON = { Other: '·', Work: '⚙\uFE0E', Passive: '%', Housing: '⌂', Utilities: '⚡\uFE0E', Food: '☕\uFE0E', Transport: '⛽\uFE0E', Health: '✚', Lifestyle: '♫', Family: '☺\uFE0E', Travel: '✈\uFE0E', Home: '⚒\uFE0E', Finance: '⚖\uFE0E', Safety: '☂\uFE0E', Big: '▲', Fun: '★', Life: '✿' };
 const groupIcon = (tags, i) => `<span class="gi" title="${tags[i][0]}">${GROUP_ICON[tags[i][0]] || '▫'}</span>`;
+const dragHandle = kind => `<span class="drag${sortMode[kind] ? ' off' : ''}" data-drag title="${sortMode[kind] ? 'clear sort to reorder' : 'drag to reorder'}">⠿</span>`;
 
 function tagSelect(tags, val) {
   let html = `<select data-f="tag">`, group = null;
@@ -231,7 +235,7 @@ function lineTable(kind, owner, items) {
   const isExp = kind === 'expenses', tags = isExp ? EXPENSE_TAGS : INCOME_TAGS, max = isExp ? MAX_EXP : MAX_INC;
   let html = `<table data-kind="${kind}" data-owner="${owner}"><tr><th>${isExp ? 'Expense' : 'Income'}</th><th class="w-amt sortable" data-sort="${kind}" title="sort">$/week${SORT_ARROW[sortMode[kind]]}</th><th class="w-conv">entered as</th><th class="w-del"></th></tr>`;
   for (const it of sorted(kind, items, lineAmt)) {
-    html += `<tr data-id="${it.id}"><td><div class="tagcell">${groupIcon(tags, it.tag)}${tagSelect(tags, it.tag)}</div></td>
+    html += `<tr data-id="${it.id}"><td><div class="tagcell">${dragHandle(kind)}${groupIcon(tags, it.tag)}${tagSelect(tags, it.tag)}</div></td>
       <td><input type="number" data-f="amt" value="${lineAmt(it)}" min="0" max="${AMT_MAX}" step="${lineAmt(it) > 511 ? 10 : 1}"></td>
       <td>${sel('conv', CONV.map(f => f[0]), 0)}</td>
       <td><button type="button" data-act="del">x</button></td></tr>`;
@@ -259,7 +263,7 @@ function goalTable(owner, items, timeline, funding) {
   let html = `<table data-kind="goals" data-owner="${owner}"><tr><th>Goal</th><th class="w-amt sortable" data-sort="goals" title="sort">Target $${SORT_ARROW[sortMode.goals]}</th><th class="w-pct">Split %</th><th class="w-wk">Reached in</th><th class="w-del"></th></tr>`;
   for (const it of sorted('goals', items, g => goalDecode(g.code))) {
     const target = goalDecode(it.code), wk = timeline[it.id];
-    html += `<tr data-id="${it.id}"><td><div class="tagcell">${groupIcon(GOAL_TAGS, it.tag)}${tagSelect(GOAL_TAGS, it.tag)}</div></td>
+    html += `<tr data-id="${it.id}"><td><div class="tagcell">${dragHandle('goals')}${groupIcon(GOAL_TAGS, it.tag)}${tagSelect(GOAL_TAGS, it.tag)}</div></td>
       <td><input type="number" data-f="goal" value="${target}" min="0" max="${GOAL_MAX}" step="${target > 5110 ? 100 : 10}"></td>
       <td><input type="number" data-f="gpct" value="${it.pct || 0}" min="0" max="100" step="1"></td>
       <td>${target === 0 ? '' : wk === null ? '<span class="neg">never</span>' : `${wk} wk (${(wk / 52.18).toFixed(1)} yr)`}</td>
@@ -388,6 +392,30 @@ $('#shareBtn').onclick = async () => {
   } catch { try { await navigator.clipboard.writeText(url); $('#shareMsg').textContent = 'link copied'; } catch { $('#shareMsg').textContent = url; } }
   setTimeout(() => { $('#shareMsg').innerHTML = '&nbsp;'; }, 2000);
 };
+// drag to reorder rows within a table: move DOM rows while dragging, commit to state on release
+document.body.addEventListener('pointerdown', e => {
+  const h = e.target.closest('[data-drag]'); if (!h || h.classList.contains('off')) return;
+  e.preventDefault();
+  const tr = h.closest('tr'), table = tr.closest('table'), kind = table.dataset.kind, owner = table.dataset.owner;
+  tr.classList.add('dragging');
+  const move = ev => {
+    const el = document.elementFromPoint(ev.clientX, ev.clientY), over = el && el.closest('tr[data-id]');
+    if (!over || over === tr || over.closest('table') !== table) return;
+    const r = over.getBoundingClientRect(), before = ev.clientY < r.top + r.height / 2;
+    if (before) table.tBodies[0].insertBefore(tr, over); else table.tBodies[0].insertBefore(tr, over.nextSibling);
+  };
+  const up = () => {
+    document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); document.removeEventListener('pointercancel', up);
+    tr.classList.remove('dragging');
+    const order = [...table.querySelectorAll('tr[data-id]')].map(x => x.dataset.id);
+    const mine = state[kind].filter(x => x.owner === owner), byId = Object.fromEntries(mine.map(x => [x.id, x]));
+    const queue = order.map(id => byId[id]).filter(Boolean);
+    if (queue.length !== mine.length) return render();
+    state[kind] = state[kind].map(x => x.owner === owner ? queue.shift() : x);
+    render();
+  };
+  document.addEventListener('pointermove', move); document.addEventListener('pointerup', up); document.addEventListener('pointercancel', up);
+});
 $('#period').innerHTML = PERIODS.map((p, i) => `<option value="${i}">${p[0]}</option>`).join('');
 $('#period').onchange = e => { state.period = Number(e.target.value); render(); };
 $('#addPerson').onclick = () => { if (state.people.length >= MAX_PEOPLE) return alert(`Max ${MAX_PEOPLE} people`); state.people.push({ id: uid(), pct: 0 }); render(); };
