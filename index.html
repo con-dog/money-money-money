@@ -240,7 +240,7 @@ function lineTable(kind, owner, items) {
 
 // Week-by-week timeline. Each bucket's money is split across its unfinished goals by their split % every week
 // (evenly if all remaining are 0%). A finished goal's share goes to the rest.
-// A person's savings go to their own goals first; anything left joins the shared surplus for shared goals.
+// Personal goals draw on that person's savings. Shared goals draw on the shared surplus plus everyone's savings.
 // Returns goal id -> week reached (null = never).
 function goalTimeline(cw) {
   const MAX_WEEKS = 5200, done = {};
@@ -256,9 +256,9 @@ function goalTimeline(cw) {
     }
     return avail;
   };
+  const pool = Math.max(0, rate['H'] || 0) + ps.reduce((s, p) => s + Math.max(0, rate[p.id] || 0), 0);
   for (let w = 1; w <= MAX_WEEKS && Object.keys(rem).length > Object.keys(done).length; w++) {
-    let pool = Math.max(0, rate['H'] || 0);
-    for (const p of ps) pool += pay(p.id, Math.max(0, rate[p.id] || 0), w);
+    for (const p of ps) pay(p.id, Math.max(0, rate[p.id] || 0), w);
     pay('H', pool, w);
   }
   for (const id in rem) if (done[id] === undefined) done[id] = null;
