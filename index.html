@@ -26,7 +26,7 @@
   input[type=number] { -moz-appearance: textfield; }
   input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
   input:disabled { background: var(--btn); color: var(--muted); border-color: var(--border); }
-  select { padding-right: 20px; background-repeat: no-repeat; background-position: right 4px center; background-size: 10px 6px;
+  select { padding-right: 16px; background-repeat: no-repeat; background-position: right 3px center; background-size: 10px 6px;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 0h10L5 6z' fill='%23111'/%3E%3C/svg%3E"); }
   @media (prefers-color-scheme: dark) { select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 0h10L5 6z' fill='%23e8e8e8'/%3E%3C/svg%3E"); } }
   /* open dropdown list, where the browser lets the page style it (Chrome base-select); others keep the native list */
@@ -47,7 +47,8 @@
   .arrow, #down, #up { text-align: center; padding: 4px 0; }
   .arrow button, #down button, #up button { font-size: 1.4em; padding: 2px 30px; }
   table { border-collapse: collapse; margin-bottom: 8px; width: 100%; table-layout: fixed; }
-  th.w-amt { width: 84px; } th.w-conv { width: 92px; } th.w-del { width: 34px; } th.w-wk { width: 124px; } th.w-pct { width: 64px; }
+  th.w-amt { width: 66px; } th.w-conv { width: 64px; } th.w-del { width: 34px; } th.w-pct { width: 64px; }
+  th { white-space: nowrap; }
   .sheet { overflow-x: auto; min-width: 0; }
   td select, td input { width: 100%; box-sizing: border-box; }
   .sheet { flex: 1; min-height: 0; overflow-y: auto; }
@@ -67,7 +68,7 @@
   @media (max-width: 360px) {
     .page { padding: 4px; }
     body { font-size: 12px; }
-    th.w-amt { width: 64px; } th.w-conv { width: 70px; } th.w-del { width: 28px; } th.w-pct { width: 52px; } th.w-wk { width: 110px; }
+    th.w-amt { width: 58px; } th.w-conv { width: 58px; } th.w-del { width: 28px; } th.w-pct { width: 52px; }
     td, th { padding: 1px 2px; }
     .col { padding: 4px; }
   }
@@ -261,7 +262,7 @@ const sel = (f, opts, val) => `<select data-f="${f}">` + opts.map((o, i) => `<op
 function lineTable(kind, owner, items) {
   const isExp = kind !== 'incomes', tags = TAGS[kind], max = { incomes: MAX_INC, expenses: MAX_EXP, savings: MAX_SAV }[kind];
   const label = { incomes: 'Income', expenses: 'Expense', savings: 'Saving' }[kind];
-  let html = `<table data-kind="${kind}" data-owner="${owner}"><tr><th>${label}</th><th class="w-amt sortable" data-sort="${kind}" title="sort">$/week${SORT_ARROW[sortMode[kind]]}</th><th class="w-conv">entered as</th><th class="w-del"></th></tr>`;
+  let html = `<table data-kind="${kind}" data-owner="${owner}"><tr><th>${label}</th><th class="w-amt sortable" data-sort="${kind}" title="sort">$/week${SORT_ARROW[sortMode[kind]]}</th><th class="w-conv">period</th><th class="w-del"></th></tr>`;
   for (const it of sorted(kind, items, lineAmt)) {
     html += `<tr data-id="${it.id}"><td><div class="tagcell">${dragHandle(kind)}${groupIcon(tags, it.tag)}${tagSelect(tags, it.tag)}</div></td>
       <td><input type="number" data-f="amt" value="${lineAmt(it)}" min="0" max="${AMT_MAX}" step="${lineAmt(it) > 511 ? 10 : 1}"${noteAttr(it.id, 'amt')}></td>
@@ -351,7 +352,7 @@ document.body.addEventListener('change', e => {
   if (f === 'amt' || f === 'conv') {
     const tr = t.closest('tr'), table = t.closest('table'), kind = table.dataset.kind;
     const item = state[kind].find(x => x.id === tr.dataset.id); if (!item) return;
-    // amount typed is interpreted at the "entered as" unit, converted to weekly, then snapped
+    // amount typed is interpreted at the "period" unit, converted to weekly, then snapped
     const raw = Number(tr.querySelector('[data-f=amt]').value) || 0, conv = CONV[Number(tr.querySelector('[data-f=conv]').value)][1];
     setLineAmt(item, raw / conv, kind !== 'incomes'); delete item._raw;
     setNote(item.id, 'amt', raw / conv, lineAmt(item), kind !== 'incomes' ? 'up' : 'down');
