@@ -1,5 +1,5 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,7 +9,6 @@
   table { border-collapse: collapse; margin-bottom: 8px; }
   td, th { border: 1px solid #999; padding: 2px 4px; text-align: left; }
   input[type=number] { width: 80px; }
-  input[type=text] { width: 110px; }
   .col { display: inline-block; vertical-align: top; border: 2px solid #333; padding: 6px; margin: 4px; }
   .neg { color: #b00; }
   .pos { color: #070; }
@@ -24,7 +23,7 @@
 <h2>Household Budget</h2>
 
 <div>
-  Period:
+  View period:
   <select id="period"></select>
   <input type="number" id="customDays" value="90" min="1" max="4095" style="width:70px" disabled>
   &nbsp; Shared net split:
@@ -39,41 +38,50 @@
     <option value="1">Distribute to people</option>
   </select>
   <br>
-  Round entries to nearest <select id="unit"><option value="0">1</option><option value="1" selected>10</option><option value="2">100</option></select>
-  <span class="small">(income rounds down, expenses and buffers round up)</span>
+  Expense buffer <input type="number" id="buffer" min="0" max="127" style="width:50px">%
+  <span class="small">(worst case = expected − buffer × expenses)</span>
   &nbsp; Round savings to <select id="saveUnit"><option value="0">1</option><option value="1">10</option><option value="2">100</option></select>
-  &nbsp;&nbsp; <button id="addPerson">+ Person</button>
-  <button id="reset">Reset</button>
+  &nbsp;&nbsp; <button type="button" id="addPerson">+ Person</button>
+  <button type="button" id="reset">Reset</button>
 </div>
+<div class="small">Amounts snap to a 3.7% grid (income down, expenses up) so each line fits in 2 bytes. Grid value shown in the /period column.</div>
 
 <div id="columns"></div>
 
 <h3>Savings forecast for this period</h3>
 <table id="forecast"></table>
-<div class="small">Expected = income − expenses. Worst = expected − all buffers. Everything is normalised to per-day then multiplied by the period.</div>
 
 <h3>Share</h3>
 <input type="text" id="link" readonly>
-<button id="copy">Copy link</button>
+<button type="button" id="copy">Copy link</button>
 <span id="linkInfo" class="small"></span>
 <div id="qr"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <script>
 // ---------- constants ----------
-const VERSION = 2;
+const VERSION = 3;
 const PERIODS = [['Week', 7], ['Fortnight', 14], ['Month', 30.4375], ['Quarter', 91.3125], ['Year', 365.25], ['Custom days', 0]];
-const FREQS = [['daily', 1], ['weekly', 7], ['fortnightly', 14], ['monthly', 30.4375], ['quarterly', 91.3125], ['yearly', 365.25], ['one-off this period', 0]];
+const FREQS = [['/day', 1], ['/week', 7], ['/fortnight', 14], ['/month', 30.4375]]; // 2 bits
 const UNITS = [1, 10, 100];
-const NAME_ALPHA = ' abcdefghijklmnopqrstuvwxyz0123456789-&.,\'/'; // 5-bit? no: 43 chars -> 6 bits. keep simple.
-const NAME_BITS = 6, NAME_MAX = 15;
+const MAX_PEOPLE = 7, MAX_INC = 15, MAX_EXP = 31;
 
-// tag 0 is always "Other". Typing a name not in the list makes it "Other" with a custom name. Max 64 per list (6 bits).
-const INCOME_TAGS = [['Other', 'Other'],
+// log-scale amount: code 0 = 0, codes 1..255 span AMT_MIN..AMT_MAX $/day geometrically
+const AMT_MIN = 0.1, AMT_MAX = 1000, AMT_R = Math.pow(AMT_MAX / AMT_MIN, 1 / 254);
+function amtEncode(perDay, roundUp) {
+  if (!(perDay > 0)) return 0;
+  const x = Math.log(perDay / AMT_MIN) / Math.log(AMT_R) + 1;
+  const c = roundUp ? Math.ceil(x - 1e-9) : Math.floor(x + 1e-9);
+  return Math.min(255, Math.max(1, c));
+}
+const amtDecode = c => c === 0 ? 0 : AMT_MIN * Math.pow(AMT_R, c - 1);
+
+// tag 0 is always "Other". Max 64 per list (6 bits). [group, name]
+const INCOME_TAGS = [['Other', 'Other'], ['Other', 'Other 2'],
   ['Work', 'Salary'], ['Work', 'Wages'], ['Work', 'Bonus'], ['Work', 'Overtime'], ['Work', 'Side hustle'], ['Work', 'Freelance'], ['Work', 'Business'],
   ['Passive', 'Rent received'], ['Passive', 'Board received'], ['Passive', 'Dividends'], ['Passive', 'Interest'],
   ['Other', 'Government payment'], ['Other', 'Child support'], ['Other', 'Pension'], ['Other', 'Scholarship'], ['Other', 'Gift'], ['Other', 'Sale of stuff']];
-const EXPENSE_TAGS = [['Other', 'Other'],
+const EXPENSE_TAGS = [['Other', 'Other'], ['Other', 'Other 2'],
   ['Housing', 'Rent'], ['Housing', 'Mortgage'], ['Housing', 'Rates'], ['Housing', 'Body corp'], ['Housing', 'Home insurance'], ['Housing', 'Contents insurance'],
   ['Utilities', 'Electricity'], ['Utilities', 'Gas'], ['Utilities', 'Water'], ['Utilities', 'Internet'], ['Utilities', 'Mobile'],
   ['Food', 'Groceries'], ['Food', 'Eating out'], ['Food', 'Coffee'], ['Food', 'Alcohol'], ['Food', 'Takeaway'],
@@ -84,53 +92,50 @@ const EXPENSE_TAGS = [['Other', 'Other'],
   ['Travel', 'Holidays'], ['Travel', 'Flights'], ['Travel', 'Travel savings'],
   ['Home', 'Furniture'], ['Home', 'Appliances'], ['Home', 'Repairs'], ['Home', 'Cleaning'], ['Home', 'Garden'],
   ['Finance', 'Life insurance'], ['Finance', 'Income protection'], ['Finance', 'Credit card'], ['Finance', 'Personal loan'], ['Finance', 'Student loan'], ['Finance', 'Tax'], ['Finance', 'Fees'], ['Finance', 'Investing'], ['Finance', 'Savings transfer']];
-const tagIndex = (tags, name) => { const n = (name || '').trim().toLowerCase(); return tags.findIndex(t => t[1].toLowerCase() === n); };
-const tagLabel = (tags, it) => it.tag ? tags[it.tag][1] : (it.name || 'Other');
-function datalist(id, tags) { return `<datalist id="${id}">` + tags.slice(1).map(t => `<option value="${t[1]}" label="${t[0]}">`).join('') + `</datalist>`; }
+const tagIndex = (tags, name) => tags.findIndex(t => t[1] === name);
+
+function tagSelect(tags, val) {
+  let html = `<select data-f="tag">`, group = null;
+  tags.forEach((t, i) => {
+    if (t[0] !== group) { if (group !== null) html += `</optgroup>`; group = t[0]; html += `<optgroup label="${group}">`; }
+    html += `<option value="${i}" ${i === val ? 'selected' : ''}>${t[1]}</option>`;
+  });
+  return html + `</optgroup></select>`;
+}
 
 // ---------- state ----------
+// lines: {id, owner, tag, freq, code}   amount is derived: amtDecode(code) * FREQS[freq][1]
 let state = defaultState();
 function defaultState() {
-  return { period: 2, customDays: 90, split: 0, surplusTo: 0, unit: 1, saveUnit: 0,
-    people: [{ id: uid(), init: 'AB', pct: 50 }, { id: uid(), init: 'CD', pct: 50 }],
-    incomes: [],   // {id, owner, tag, name, amt, freq}
-    expenses: [] };// {id, owner, tag, name, amt, freq, buf, bufPct}
+  return { period: 0, customDays: 90, split: 0, surplusTo: 0, saveUnit: 0, buffer: 10,
+    people: [{ id: uid(), init: 'AB', pct: 50 }, { id: uid(), init: 'CD', pct: 50 }], incomes: [], expenses: [] };
 }
 function uid() { return Math.random().toString(36).slice(2, 7); }
-// display label: initials, with (n) suffix for duplicates
 function pname(p) { const same = state.people.filter(q => q.init === p.init); const k = same.indexOf(p); return p.init + (k > 0 ? `(${k})` : ''); }
 const cleanInit = s => (s || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2);
-
-// ---------- rounding ----------
-const unitVal = () => UNITS[state.unit];
-const rDown = v => Math.floor((Number(v) || 0) / unitVal()) * unitVal();
-const rUp = v => Math.ceil((Number(v) || 0) / unitVal()) * unitVal();
-function applyRounding() {
-  for (const i of state.incomes) i.amt = rDown(i.amt);
-  for (const e of state.expenses) { e.amt = rUp(e.amt); if (!e.bufPct) e.buf = rUp(e.buf); else e.buf = Math.min(127, Math.max(0, Math.round(e.buf) || 0)); }
-}
+const lineAmt = it => amtDecode(it.code) * FREQS[it.freq][1];
+const setLineAmt = (it, amt, isExp) => { it.code = amtEncode((Number(amt) || 0) / FREQS[it.freq][1], isExp); };
 
 // ---------- calc ----------
 function periodDays() { return PERIODS[state.period][1] || Math.max(1, Number(state.customDays) || 1); }
-function perPeriod(amt, freq, days) { amt = Number(amt) || 0; const f = FREQS[freq][1]; return f ? amt / f * days : amt; }
-function bufferAmt(e, days) { return e.bufPct ? perPeriod(e.amt, e.freq, days) * (Number(e.buf) || 0) / 100 : perPeriod(e.buf, e.freq, days); }
+const perPeriod = (it, days) => amtDecode(it.code) * days;
 
 function calc() {
-  const days = periodDays();
+  const days = periodDays(), bufF = (Number(state.buffer) || 0) / 100;
   const r = {};
   for (const o of ['H', ...state.people.map(p => p.id)]) r[o] = { income: 0, expense: 0, buffer: 0 };
-  for (const i of state.incomes) if (r[i.owner]) r[i.owner].income += perPeriod(i.amt, i.freq, days);
-  for (const e of state.expenses) if (r[e.owner]) { r[e.owner].expense += perPeriod(e.amt, e.freq, days); r[e.owner].buffer += bufferAmt(e, days); }
+  for (const i of state.incomes) if (r[i.owner]) r[i.owner].income += perPeriod(i, days);
+  for (const e of state.expenses) if (r[e.owner]) { const v = perPeriod(e, days); r[e.owner].expense += v; r[e.owner].buffer += v * bufF; }
 
   const totalIncome = state.people.reduce((s, p) => s + r[p.id].income, 0);
   const totalPct = state.people.reduce((s, p) => s + (Number(p.pct) || 0), 0);
   const n = state.people.length, share = {};
   for (const p of state.people) {
-    if (state.split == 1) share[p.id] = totalIncome ? r[p.id].income / totalIncome : 1 / n;
-    else if (state.split == 2) share[p.id] = totalPct ? (Number(p.pct) || 0) / totalPct : 1 / n;
+    if (state.split === 1) share[p.id] = totalIncome ? r[p.id].income / totalIncome : 1 / n;
+    else if (state.split === 2) share[p.id] = totalPct ? (Number(p.pct) || 0) / totalPct : 1 / n;
     else share[p.id] = 1 / n;
   }
-  const h = r['H'], hExp = h.income - h.expense, hWorst = hExp - h.buffer, dist = state.surplusTo == 1;
+  const h = r['H'], hExp = h.income - h.expense, hWorst = hExp - h.buffer, dist = state.surplusTo === 1;
   const out = { days, share, rows: [] };
   for (const p of state.people) {
     const me = r[p.id];
@@ -150,29 +155,26 @@ const fmt = n => (n < 0 ? '-' : '') + Math.abs(n).toFixed(0).replace(/\B(?=(\d{3
 const fmtSave = n => { const u = UNITS[state.saveUnit]; return fmt(Math.floor(n / u) * u); };
 const cls = n => n < 0 ? 'neg' : 'pos';
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const sel = (f, opts, val) => `<select data-f="${f}">` + opts.map((o, i) => `<option value="${i}" ${i == val ? 'selected' : ''}>${esc(o)}</option>`).join('') + `</select>`;
+const sel = (f, opts, val) => `<select data-f="${f}">` + opts.map((o, i) => `<option value="${i}" ${i === val ? 'selected' : ''}>${esc(o)}</option>`).join('') + `</select>`;
 
 function lineTable(kind, owner, items, days) {
-  const isExp = kind === 'expenses', tags = isExp ? EXPENSE_TAGS : INCOME_TAGS;
-  let html = `<table data-kind="${kind}" data-owner="${owner}"><tr><th>${isExp ? 'Expense' : 'Income'}</th><th>Amount</th><th>Freq</th>` +
-    (isExp ? `<th>Buffer</th><th>%</th>` : '') + `<th>/period</th><th></th></tr>`;
+  const isExp = kind === 'expenses', tags = isExp ? EXPENSE_TAGS : INCOME_TAGS, max = isExp ? MAX_EXP : MAX_INC;
+  let html = `<table data-kind="${kind}" data-owner="${owner}"><tr><th>${isExp ? 'Expense' : 'Income'}</th><th>Amount</th><th>Freq</th><th>/period</th><th></th></tr>`;
   for (const it of items) {
-    html += `<tr data-id="${it.id}"><td><input type="text" data-f="tagname" list="${isExp ? 'exp-tags' : 'inc-tags'}" maxlength="${NAME_MAX}" value="${esc(tagLabel(tags, it))}" title="${it.tag ? tags[it.tag][0] : 'custom name'}"></td>
-      <td><input type="number" data-f="amt" value="${it.amt}" step="${unitVal()}"></td>
-      <td>${sel('freq', FREQS.map(f => f[0]), it.freq)}</td>` +
-      (isExp ? `<td><input type="number" data-f="buf" value="${it.buf}" step="${it.bufPct ? 1 : unitVal()}"></td>
-      <td><input type="checkbox" data-f="bufPct" ${it.bufPct ? 'checked' : ''} title="buffer is a percentage"></td>` : '') +
-      `<td>${fmt(perPeriod(it.amt, it.freq, days))}${isExp && it.buf ? ` <span class="small">+${fmt(bufferAmt(it, days))}</span>` : ''}</td>
-      <td><button data-act="del">x</button></td></tr>`;
+    const a = lineAmt(it);
+    html += `<tr data-id="${it.id}"><td>${tagSelect(tags, it.tag)}</td>
+      <td><input type="number" data-f="amt" value="${Math.round(a)}" title="grid value ${a.toFixed(2)}"></td>
+      <td>${sel('freq', FREQS.map(f => f[0]), it.freq)}</td>
+      <td>${fmt(perPeriod(it, days))}</td>
+      <td><button type="button" data-act="del">x</button></td></tr>`;
   }
-  return html + `<tr><td colspan="7"><button data-act="add">+ ${isExp ? 'expense' : 'income'}</button></td></tr></table>`;
+  return html + `<tr><td colspan="5">${items.length < max ? `<button type="button" data-act="add">+ ${isExp ? 'expense' : 'income'}</button>` : `<span class="small">max ${max}</span>`}</td></tr></table>`;
 }
 
 function render() {
-  applyRounding();
   const c = calc(), days = c.days;
-  $('#period').value = state.period; $('#customDays').value = state.customDays; $('#customDays').disabled = state.period != 5;
-  $('#split').value = state.split; $('#surplusTo').value = state.surplusTo; $('#unit').value = state.unit; $('#saveUnit').value = state.saveUnit;
+  $('#period').value = state.period; $('#customDays').value = state.customDays; $('#customDays').disabled = state.period !== 5;
+  $('#split').value = state.split; $('#surplusTo').value = state.surplusTo; $('#saveUnit').value = state.saveUnit; $('#buffer').value = state.buffer;
 
   let html = '';
   for (const col of [{ id: 'H', name: 'Shared / Household' }, ...state.people.map(p => ({ ...p, name: pname(p) }))]) {
@@ -180,16 +182,16 @@ function render() {
     const row = c.rows.find(r => r.name === col.name && !!r.isH === isH) || { income: 0, expense: 0, buffer: 0 };
     html += `<div class="col" data-owner="${col.id}"><h3>` +
       (isH ? esc(col.name) : `<input type="text" data-f="pname" maxlength="2" style="width:30px;text-transform:uppercase" value="${esc(col.init)}" title="initials">${col.name.length > 2 ? esc(col.name.slice(2)) : ''} ` +
-        (state.split == 2 ? `<input type="number" data-f="pct" value="${col.pct}" min="0" max="100" style="width:50px">% ` : `<span class="small">share ${(c.share[col.id] * 100).toFixed(1)}%</span> `) +
-        `<button data-act="delPerson">x</button>`) + `</h3>` +
+        (state.split === 2 ? `<input type="number" data-f="pct" value="${col.pct}" min="0" max="100" style="width:50px">% ` : `<span class="small">share ${(c.share[col.id] * 100).toFixed(1)}%</span> `) +
+        `<button type="button" data-act="delPerson">x</button>`) + `</h3>` +
       lineTable('incomes', col.id, state.incomes.filter(i => i.owner === col.id), days) +
       lineTable('expenses', col.id, state.expenses.filter(e => e.owner === col.id), days) +
-      `<div>Income ${fmt(row.income)} &minus; expenses ${fmt(row.expense)} = <b class="${cls(row.income - row.expense)}">${fmt(row.income - row.expense)}</b> <span class="small">(buffers ${fmt(row.buffer)})</span></div>` +
+      `<div>Income ${fmt(row.income)} &minus; expenses ${fmt(row.expense)} = <b class="${cls(row.income - row.expense)}">${fmt(row.income - row.expense)}</b> <span class="small">(buffer ${fmt(row.buffer)})</span></div>` +
       (!isH && row.contribH ? `<div class="small">Share of household net: <span class="${cls(row.contribH)}">${fmt(row.contribH)}</span></div>` : '') + `</div>`;
   }
-  $('#columns').innerHTML = datalist('inc-tags', INCOME_TAGS) + datalist('exp-tags', EXPENSE_TAGS) + html;
+  $('#columns').innerHTML = html;
 
-  let f = `<tr><th>Bucket</th><th>Income</th><th>Expenses</th><th>Buffers</th><th>Household share</th><th>Expected savings</th><th>Worst case</th></tr>`;
+  let f = `<tr><th>Bucket</th><th>Income</th><th>Expenses</th><th>Buffer</th><th>Household share</th><th>Expected savings</th><th>Worst case</th></tr>`;
   for (const r of c.rows) f += `<tr${r.isTotal ? ' style="font-weight:bold"' : ''}><td>${esc(r.name)}</td><td>${fmt(r.income)}</td><td>${fmt(r.expense)}</td><td>${fmt(r.buffer)}</td>` +
     `<td>${r.isTotal || r.isH ? '' : fmt(r.contribH)}</td><td class="${cls(r.expected)}">${fmtSave(r.expected)}</td><td class="${cls(r.worst)}">${fmtSave(r.worst)}</td></tr>`;
   $('#forecast').innerHTML = f;
@@ -199,35 +201,25 @@ function render() {
 // ---------- events ----------
 document.body.addEventListener('input', e => {
   const t = e.target, f = t.dataset.f; if (!f) return;
-  const col = t.closest('.col');
   if (f === 'pname' || f === 'pct') {
-    const p = state.people.find(p => p.id === col.dataset.owner);
+    const p = state.people.find(p => p.id === t.closest('.col').dataset.owner);
     if (f === 'pname') { p.init = cleanInit(t.value); updateLink(); return; }
     p.pct = Number(t.value); render(); return;
   }
-  const tr = t.closest('tr'), table = t.closest('table'), list = state[table.dataset.kind];
-  const item = list.find(x => x.id === tr.dataset.id); if (!item) return;
-  if (f === 'bufPct') item.bufPct = t.checked;
-  else if (f === 'tagname') return; // handled on change
-  else if (f === 'amt' || f === 'buf') { item[f] = Number(t.value); updateLink(); return; } // round on change, not per keystroke
+  const tr = t.closest('tr'), table = t.closest('table'), kind = table.dataset.kind;
+  const item = state[kind].find(x => x.id === tr.dataset.id); if (!item) return;
+  if (f === 'amt') { setLineAmt(item, t.value, kind === 'expenses'); updateLink(); return; } // snap to grid on change, not per keystroke
+  if (f === 'freq') { const a = lineAmt(item); item.freq = Number(t.value); setLineAmt(item, a, kind === 'expenses'); }
   else item[f] = Number(t.value);
   render();
 });
-document.body.addEventListener('change', e => {
-  const t = e.target, f = t.dataset.f;
-  if (f === 'tagname') {
-    const tr = t.closest('tr'), table = t.closest('table'), item = state[table.dataset.kind].find(x => x.id === tr.dataset.id);
-    const tags = table.dataset.kind === 'expenses' ? EXPENSE_TAGS : INCOME_TAGS, idx = tagIndex(tags, t.value);
-    if (idx > 0) { item.tag = idx; item.name = ''; } else { item.tag = 0; item.name = t.value.trim().slice(0, NAME_MAX); }
-    render();
-  } else if (['pname', 'amt', 'buf'].includes(f)) render();
-});
+document.body.addEventListener('change', e => { if (['pname', 'amt'].includes(e.target.dataset.f)) render(); });
 
 document.body.addEventListener('click', e => {
   const act = e.target.dataset.act; if (!act) return;
   if (act === 'add') {
     const table = e.target.closest('table');
-    state[table.dataset.kind].push({ id: uid(), owner: table.dataset.owner, tag: 1, name: '', amt: 0, freq: 3, buf: 0, bufPct: false });
+    state[table.dataset.kind].push({ id: uid(), owner: table.dataset.owner, tag: 1, freq: 1, code: 0 });
   } else if (act === 'del') {
     const table = e.target.closest('table'), tr = e.target.closest('tr');
     state[table.dataset.kind] = state[table.dataset.kind].filter(x => x.id !== tr.dataset.id);
@@ -245,63 +237,53 @@ $('#period').onchange = e => { state.period = Number(e.target.value); render(); 
 $('#customDays').oninput = e => { state.customDays = Math.min(4095, Number(e.target.value)); render(); };
 $('#split').onchange = e => { state.split = Number(e.target.value); render(); };
 $('#surplusTo').onchange = e => { state.surplusTo = Number(e.target.value); render(); };
-$('#unit').onchange = e => { state.unit = Number(e.target.value); render(); };
 $('#saveUnit').onchange = e => { state.saveUnit = Number(e.target.value); render(); };
-$('#addPerson').onclick = () => { if (state.people.length >= 7) return alert('Max 7 people'); state.people.push({ id: uid(), init: 'P' + (state.people.length + 1), pct: 0 }); render(); };
+$('#buffer').onchange = e => { state.buffer = Math.min(127, Math.max(0, Math.round(Number(e.target.value)) || 0)); render(); };
+$('#addPerson').onclick = () => { if (state.people.length >= MAX_PEOPLE) return alert(`Max ${MAX_PEOPLE} people`); state.people.push({ id: uid(), init: 'P' + (state.people.length + 1), pct: 0 }); render(); };
 $('#reset').onclick = () => { if (confirm('Clear everything?')) { state = defaultState(); render(); } };
 $('#copy').onclick = () => navigator.clipboard.writeText($('#link').value).then(() => $('#linkInfo').textContent += ' — copied');
 
 // ---------- bit-packed serialisation ----------
+// header: ver4 period3 [days12] split2 surplus1 saveUnit2 buffer7 npeople3
+// per person: initials 10 [pct7]
+// per owner (H, then people in order): ninc4, lines; nexp5, lines
+// line: tag6 freq2 code8 = 16 bits exactly
 class BitWriter {
   constructor() { this.bits = []; }
   w(val, n) { for (let i = n - 1; i >= 0; i--) this.bits.push((val >> i) & 1); }
-  // variable width unsigned: 2-bit class selects 6/10/14/20 bit payload
-  varu(v) { v = Math.max(0, Math.round(v)); const ws = [6, 10, 14, 20]; let k = ws.findIndex(w => v < (1 << w)); if (k < 0) { k = 3; v = (1 << 20) - 1; } this.w(k, 2); this.w(v, ws[k]); }
   init(s) { s = cleanInit(s); for (let i = 0; i < 2; i++) this.w(s[i] ? s.charCodeAt(i) - 65 : 26, 5); }
-  str(s) { s = (s || '').toLowerCase().slice(0, NAME_MAX); const cs = [...s].map(c => NAME_ALPHA.indexOf(c)).filter(i => i >= 0); this.w(cs.length, 4); for (const c of cs) this.w(c, NAME_BITS); }
   bytes() { const out = new Uint8Array(Math.ceil(this.bits.length / 8)); this.bits.forEach((b, i) => { out[i >> 3] |= b << (7 - (i & 7)); }); return out; }
 }
 class BitReader {
   constructor(bytes) { this.b = bytes; this.p = 0; }
   r(n) { let v = 0; for (let i = 0; i < n; i++) { const byte = this.b[this.p >> 3] || 0; v = (v << 1) | ((byte >> (7 - (this.p & 7))) & 1); this.p++; } return v >>> 0; }
-  varu() { const ws = [6, 10, 14, 20]; return this.r(ws[this.r(2)]); }
   init() { let s = ''; for (let i = 0; i < 2; i++) { const c = this.r(5); if (c < 26) s += String.fromCharCode(65 + c); } return s; }
-  str() { const n = this.r(4); let s = ''; for (let i = 0; i < n; i++) s += NAME_ALPHA[this.r(NAME_BITS)]; return s.replace(/\b\w/g, c => c.toUpperCase()); }
 }
-const ownerBits = () => Math.max(1, Math.ceil(Math.log2(state.people.length + 1)));
-
 function encode(s) {
   const bw = new BitWriter();
-  bw.w(VERSION, 4); bw.w(s.period, 3); if (s.period == 5) bw.w(s.customDays, 12);
-  bw.w(s.split, 2); bw.w(s.surplusTo, 1); bw.w(s.unit, 2); bw.w(s.saveUnit, 2);
+  bw.w(VERSION, 4); bw.w(s.period, 3); if (s.period === 5) bw.w(s.customDays, 12);
+  bw.w(s.split, 2); bw.w(s.surplusTo, 1); bw.w(s.saveUnit, 2); bw.w(s.buffer, 7);
   bw.w(s.people.length, 3);
-  for (const p of s.people) { bw.init(p.init); if (s.split == 2) bw.w(Math.min(100, Math.max(0, Math.round(p.pct) || 0)), 7); }
-  const ob = ownerBits(), oidx = id => id === 'H' ? 0 : s.people.findIndex(p => p.id === id) + 1;
-  const u = UNITS[s.unit];
-  bw.w(s.incomes.length, 6);
-  for (const i of s.incomes) { bw.w(oidx(i.owner), ob); bw.w(i.tag, 6); if (i.tag == 0) bw.str(i.name); bw.w(i.freq, 3); bw.varu(i.amt / u); }
-  bw.w(s.expenses.length, 6);
-  for (const e of s.expenses) {
-    bw.w(oidx(e.owner), ob); bw.w(e.tag, 6); if (e.tag == 0) bw.str(e.name); bw.w(e.freq, 3); bw.varu(e.amt / u);
-    if (!e.buf) bw.w(0, 1); else { bw.w(1, 1); bw.w(e.bufPct ? 1 : 0, 1); if (e.bufPct) bw.w(e.buf, 7); else bw.varu(e.buf / u); }
+  for (const p of s.people) { bw.init(p.init); if (s.split === 2) bw.w(Math.min(100, Math.max(0, Math.round(p.pct) || 0)), 7); }
+  const line = it => { bw.w(it.tag, 6); bw.w(it.freq, 2); bw.w(it.code, 8); };
+  for (const o of ['H', ...s.people.map(p => p.id)]) {
+    const inc = s.incomes.filter(i => i.owner === o).slice(0, MAX_INC), exp = s.expenses.filter(e => e.owner === o).slice(0, MAX_EXP);
+    bw.w(inc.length, 4); inc.forEach(line); bw.w(exp.length, 5); exp.forEach(line);
   }
   return bw.bytes();
 }
 function decode(bytes) {
   const br = new BitReader(bytes), s = {};
   const v = br.r(4); if (v !== VERSION) throw new Error('unknown version ' + v);
-  s.period = br.r(3); s.customDays = s.period == 5 ? br.r(12) : 90;
-  s.split = br.r(2); s.surplusTo = br.r(1); s.unit = br.r(2); s.saveUnit = br.r(2);
+  s.period = br.r(3); s.customDays = s.period === 5 ? br.r(12) : 90;
+  s.split = br.r(2); s.surplusTo = br.r(1); s.saveUnit = br.r(2); s.buffer = br.r(7);
   const np = br.r(3); s.people = [];
-  for (let i = 0; i < np; i++) { const p = { id: uid(), init: br.init(), pct: 0 }; if (s.split == 2) p.pct = br.r(7); s.people.push(p); }
-  const ob = Math.max(1, Math.ceil(Math.log2(np + 1))), owner = i => i === 0 ? 'H' : s.people[i - 1].id, u = UNITS[s.unit];
-  s.incomes = []; let n = br.r(6);
-  for (let i = 0; i < n; i++) { const it = { id: uid(), owner: owner(br.r(ob)), tag: br.r(6) }; if (it.tag == 0) it.name = br.str(); it.freq = br.r(3); it.amt = br.varu() * u; s.incomes.push(it); }
-  s.expenses = []; n = br.r(6);
-  for (let i = 0; i < n; i++) {
-    const it = { id: uid(), owner: owner(br.r(ob)), tag: br.r(6), buf: 0, bufPct: false }; if (it.tag == 0) it.name = br.str(); it.freq = br.r(3); it.amt = br.varu() * u;
-    if (br.r(1)) { it.bufPct = !!br.r(1); it.buf = it.bufPct ? br.r(7) : br.varu() * u; }
-    s.expenses.push(it);
+  for (let i = 0; i < np; i++) { const p = { id: uid(), init: br.init(), pct: 0 }; if (s.split === 2) p.pct = br.r(7); s.people.push(p); }
+  s.incomes = []; s.expenses = [];
+  const line = owner => ({ id: uid(), owner, tag: br.r(6), freq: br.r(2), code: br.r(8) });
+  for (const o of ['H', ...s.people.map(p => p.id)]) {
+    let n = br.r(4); for (let i = 0; i < n; i++) s.incomes.push(line(o));
+    n = br.r(5); for (let i = 0; i < n; i++) s.expenses.push(line(o));
   }
   return s;
 }
@@ -319,24 +301,25 @@ function updateLink() {
     history.replaceState(null, '', '#' + enc);
     const url = location.href;
     $('#link').value = url;
-    $('#linkInfo').textContent = `${bytes.length} bytes → ${enc.length} chars; full URL ${url.length} chars`;
+    const nl = state.incomes.length + state.expenses.length;
+    $('#linkInfo').textContent = `${bytes.length} bytes → ${enc.length} chars (${nl} lines × 2 bytes + ${bytes.length - nl * 2} header); full URL ${url.length} chars`;
     try {
       const qr = qrcode(0, 'L'); qr.addData(url, 'Byte'); qr.make();
-      $('#qr').innerHTML = qr.createSvgTag({ cellSize: 3, margin: 4 }) + `<div class="small">QR version ${qr.getModuleCount() ? (qr.getModuleCount() - 17) / 4 : '?'} (${qr.getModuleCount()}×${qr.getModuleCount()})</div>`;
+      $('#qr').innerHTML = qr.createSvgTag({ cellSize: 3, margin: 4 }) + `<div class="small">QR version ${(qr.getModuleCount() - 17) / 4} (${qr.getModuleCount()}×${qr.getModuleCount()})</div>`;
     } catch (e) { $('#qr').innerHTML = `<span class="small">QR unavailable (${esc(e.message)})</span>`; }
   }, 150);
 }
-function save() { try { localStorage.setItem('budget3', JSON.stringify(state)); } catch {} }
+function save() { try { localStorage.setItem('budget4', JSON.stringify(state)); } catch {} }
 
 function load() {
   const hash = location.hash.slice(1);
   if (hash) { try { state = decode(b64u.dec(hash)); return; } catch (e) { alert('Could not read budget from link: ' + e.message); } }
-  try { const s = localStorage.getItem('budget3'); if (s) { state = JSON.parse(s); return; } } catch {}
+  try { const s = localStorage.getItem('budget4'); if (s) { state = JSON.parse(s); return; } } catch {}
   state = defaultState();
-  state.period = 0; state.people[0].init = 'MB'; state.people[1].init = 'CT';
-  const [m, c] = state.people.map(p => p.id), T = EXPENSE_TAGS, I = INCOME_TAGS;
-  const inc = (owner, tag, amt, freq = 1) => state.incomes.push({ id: uid(), owner, tag: tagIndex(I, tag), name: '', amt, freq });
-  const exp = (owner, tag, amt, freq = 1, buf = 0, bufPct = false) => state.expenses.push({ id: uid(), owner, tag: tagIndex(T, tag), name: '', amt, freq, buf, bufPct });
+  state.people[0].init = 'MB'; state.people[1].init = 'CT';
+  const [m, c] = state.people.map(p => p.id);
+  const inc = (owner, tag, amt, freq = 1) => { const it = { id: uid(), owner, tag: tagIndex(INCOME_TAGS, tag), freq, code: 0 }; setLineAmt(it, amt, false); state.incomes.push(it); };
+  const exp = (owner, tag, amt, freq = 1) => { const it = { id: uid(), owner, tag: tagIndex(EXPENSE_TAGS, tag), freq, code: 0 }; setLineAmt(it, amt, true); state.expenses.push(it); };
   inc(m, 'Salary', 800); inc(c, 'Salary', 2076.88);
   exp('H', 'Groceries', 75); exp('H', 'Electricity', 65); exp('H', 'Water', 0); exp('H', 'Internet', 11.25);
   exp(m, 'Rent', 180); exp(m, 'Gym', 19); exp(m, 'Dance classes', 60); exp(m, 'Streaming', 5); exp(m, 'Pharmacy', 20); exp(m, 'Travel savings', 60); exp(m, 'Public transport', 60); exp(m, 'Fun money', 75);
