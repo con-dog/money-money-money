@@ -17,7 +17,29 @@
   .col, #forecast, #goalsum, #incoming, .tabs button, #nav button, .arrow button, #down button, #up button, #pos, #bottom { background: var(--surface); }
   table { background: var(--surface); }
   #share { background: #fff; color: #111; } /* QR stays black on white */
-  button { background: var(--btn); color: var(--fg); border: 1px solid var(--border); border-radius: 3px; }
+  /* brutalist: no radius anywhere, flat fills, heavy square borders, one typeface */
+  *, *::before, *::after { border-radius: 0 !important; box-shadow: none !important; }
+  button, input, select, textarea { font: inherit; color: var(--fg); background: var(--surface); border: 2px solid var(--strong); padding: 2px 6px; margin: 0; appearance: none; -webkit-appearance: none; }
+  button { background: var(--btn); cursor: pointer; text-transform: uppercase; }
+  button:active { background: var(--strong); color: var(--bg); }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--fg); outline-offset: 0; }
+  input[type=number] { -moz-appearance: textfield; }
+  input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  input:disabled { background: var(--btn); color: var(--muted); border-color: var(--border); }
+  select { padding-right: 20px; background-repeat: no-repeat; background-position: right 4px center; background-size: 10px 6px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 0h10L5 6z' fill='%23111'/%3E%3C/svg%3E"); }
+  @media (prefers-color-scheme: dark) { select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 0h10L5 6z' fill='%23e8e8e8'/%3E%3C/svg%3E"); } }
+  /* open dropdown list, where the browser lets the page style it (Chrome base-select); others keep the native list */
+  select, ::picker(select) { appearance: base-select; }
+  ::picker(select) { border: 2px solid var(--strong); background: var(--surface); color: var(--fg); padding: 0; }
+  select option { padding: 2px 6px; }
+  select option:checked { background: var(--strong); color: var(--bg); }
+  select option:hover { background: var(--btn); }
+  select optgroup { font-weight: bold; }
+  select::picker-icon { display: none; }
+  input[type=radio] { width: 14px; height: 14px; padding: 0; vertical-align: middle; display: inline-grid; place-content: center; }
+  input[type=radio]::before { content: ''; width: 6px; height: 6px; background: var(--fg); transform: scale(0); }
+  input[type=radio]:checked::before { transform: scale(1); }
   #pos { display: table; margin: 4px auto 0; padding: 2px 8px; }
   #bottom { display: inline-block; align-self: flex-start; padding: 2px 8px; margin-top: 8px; }
   main { height: 100dvh; overflow-y: auto; scroll-snap-type: y mandatory; }
@@ -41,6 +63,7 @@
   .gi { font-size: 1.25em; line-height: 1; color: var(--fg); width: 1.3em; text-align: center; flex: none; }
   .tagcell select { flex: 1; min-width: 0; }
   td, th { border: 1px solid var(--border); padding: 2px 4px; text-align: left; }
+  th { border-bottom: 2px solid var(--strong); }
   select { max-width: 100%; }
   @media (max-width: 360px) {
     .page { padding: 4px; }
@@ -68,7 +91,7 @@
   .col { flex: 0 0 100%; min-width: 0; min-height: 0; display: flex; flex-direction: column; scroll-snap-align: start; box-sizing: border-box; border: 3px solid var(--strong); padding: 6px; }
   .tabs { display: flex; gap: 4px; margin: 6px 0; }
   .tabs button { flex: 1; padding: 4px; }
-  .tabs button.on { background: var(--strong); color: var(--bg); }
+  .tabs button.on { background: var(--strong); color: var(--bg); border-color: var(--strong); }
   #nav { display: flex; justify-content: space-between; align-items: center; margin: 6px 0; }
 </style>
 </head>
