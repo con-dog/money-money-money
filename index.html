@@ -9,8 +9,8 @@
   body { font-family: monospace; }
   main { height: 100dvh; overflow-y: auto; scroll-snap-type: y mandatory; }
   .page { height: 100dvh; box-sizing: border-box; scroll-snap-align: start; max-width: 520px; margin: 0 auto; padding: 12px; display: flex; flex-direction: column; }
-  #down { text-align: center; padding: 4px 0; }
-  #down button { font-size: 1.4em; padding: 2px 30px; }
+  #down, #up { text-align: center; padding: 4px 0; }
+  #down button, #up button { font-size: 1.4em; padding: 2px 30px; }
   table { border-collapse: collapse; margin-bottom: 8px; width: 100%; }
   td, th { border: 1px solid #999; padding: 2px 4px; text-align: left; }
   input[type=number] { width: 70px; }
@@ -35,7 +35,7 @@
 </head>
 <body>
 <main>
-<section class="page">
+<section class="page" id="page1">
 
 <div id="share">
   <div id="qr"></div>
@@ -55,6 +55,7 @@
 
 </section>
 <section class="page" id="page2">
+<div id="up"><button type="button" id="upBtn" title="entries">&uarr;</button></div>
 
 <div id="bottom">
   <span>View: <select id="period"></select> <input type="number" id="customDays" value="90" min="1" max="4095" style="width:60px" disabled></span>
@@ -274,6 +275,7 @@ $('#track').addEventListener('scroll', updatePos);
 const go = d => { const t = $('#track'), n = t.children.length; t.scrollTo({ left: ((curIndex() + d + n) % n) * t.clientWidth, behavior: 'smooth' }); };
 $('#prev').onclick = () => go(-1);
 $('#downBtn').onclick = () => $('#page2').scrollIntoView({ behavior: 'smooth' });
+$('#upBtn').onclick = () => $('#page1').scrollIntoView({ behavior: 'smooth' });
 $('#next').onclick = () => go(1);
 window.addEventListener('resize', () => { const t = $('#track'); t.scrollLeft = curIndex() * t.clientWidth; });
 $('#shareBtn').onclick = async () => {
