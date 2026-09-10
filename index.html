@@ -22,6 +22,9 @@
   #track { display: flex; align-items: flex-start; overflow-x: auto; scroll-snap-type: x mandatory; gap: 8px; scrollbar-width: none; }
   #track::-webkit-scrollbar { display: none; }
   .col { flex: 0 0 100%; scroll-snap-align: start; box-sizing: border-box; border: 3px solid #333; padding: 6px; }
+  .tabs { display: flex; gap: 4px; margin: 6px 0; }
+  .tabs button { flex: 1; padding: 4px; }
+  .tabs button.on { background: #333; color: #fff; }
   #nav { display: flex; justify-content: space-between; align-items: center; margin: 6px 0; }
   #bottom { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
 </style>
@@ -55,11 +58,11 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <script>
 // ---------- constants ----------
-const VERSION = 9;
+const VERSION = 10;
 const PERIODS = [['Week', 7], ['Fortnight', 14], ['Month', 30.4375], ['Quarter', 91.3125], ['Year', 365.25], ['Custom days', 0]];
 // entry conversion helpers only; everything is stored per week
 const CONV = [['/wk', 1], ['/fn', 2], ['/mo', 30.4375 / 7], ['/qtr', 91.3125 / 7], ['/yr', 365.25 / 7]];
-const MAX_PEOPLE = 8, MAX_INC = 15, MAX_EXP = 31;
+const MAX_PEOPLE = 8, MAX_INC = 15, MAX_EXP = 31, MAX_GOAL = 7;
 // colour is assigned by position: person 1 is always Blue, person 2 Purple, ...
 const COLOURS = [['Blue', '#1e88e5'], ['Purple', '#8e24aa'], ['Green', '#43a047'], ['Orange', '#fb8c00'], ['Red', '#e53935'], ['Teal', '#00897b'], ['Pink', '#d81b60'], ['Yellow', '#fdd835']];
 
@@ -73,6 +76,10 @@ function amtEncode(weekly, roundUp) {
   return 512 | Math.min(511, r(weekly / 10));     // scale 1
 }
 const amtDecode = c => (c & 512) ? (c & 511) * 10 : c;
+// goal target, 10 bits: scale bit (x10 or x100) + 9-bit mantissa. $10 steps to $5110, $100 steps to $51,100. Rounds up.
+const GOAL_MAX = 51100;
+function goalEncode(v) { v = Math.min(GOAL_MAX, Math.max(0, Number(v) || 0)); const m = Math.ceil(v / 10 - 1e-9); return m <= 511 ? m : 512 | Math.min(511, Math.ceil(v / 100 - 1e-9)); }
+const goalDecode = c => (c & 512) ? (c & 511) * 100 : c * 10;
 
 // tag 0 is always "Other". Max 64 per list (6 bits). [group, name]
 const INCOME_TAGS = [['Other', 'Other'], ['Other', 'Other 2'],
@@ -90,6 +97,11 @@ const EXPENSE_TAGS = [['Other', 'Other'], ['Other', 'Other 2'], ['Other', 'Buffe
   ['Travel', 'Holidays'], ['Travel', 'Flights'], ['Travel', 'Travel savings'],
   ['Home', 'Furniture'], ['Home', 'Appliances'], ['Home', 'Repairs'], ['Home', 'Cleaning'], ['Home', 'Garden'],
   ['Finance', 'Life insurance'], ['Finance', 'Income protection'], ['Finance', 'Credit card'], ['Finance', 'Personal loan'], ['Finance', 'Student loan'], ['Finance', 'Tax'], ['Finance', 'Fees'], ['Finance', 'Investing'], ['Finance', 'Savings transfer']];
+const GOAL_TAGS = [['Other', 'Other'], ['Other', 'Other 2'],
+  ['Safety', 'Emergency fund'], ['Safety', 'Debt payoff'],
+  ['Big', 'House deposit'], ['Big', 'Car'], ['Big', 'Wedding'], ['Big', 'Renovation'], ['Big', 'Investment'],
+  ['Fun', 'Holiday'], ['Fun', 'Tech'], ['Fun', 'Furniture'], ['Fun', 'Hobby gear'],
+  ['Life', 'Education'], ['Life', 'Baby'], ['Life', 'Moving'], ['Life', 'Gift']];
 const tagIndex = (tags, name) => tags.findIndex(t => t[1] === name);
 
 function tagSelect(tags, val) {
@@ -105,7 +117,7 @@ function tagSelect(tags, val) {
 // lines: {id, owner, tag, code}   weekly amount = amtDecode(code)
 let state = defaultState();
 function defaultState() {
-  return { period: 0, customDays: 90, people: [{ id: uid() }, { id: uid() }], incomes: [], expenses: [] };
+  return { period: 0, customDays: 90, people: [{ id: uid() }, { id: uid() }], incomes: [], expenses: [], goals: [] }; // goals: {id, owner, tag, code}
 }
 function uid() { return Math.random().toString(36).slice(2, 7); }
 const pidx = p => state.people.findIndex(q => q.id === p.id);
@@ -158,6 +170,19 @@ function lineTable(kind, owner, items, days) {
   return html + `<tr><td colspan="5">${items.length < max ? `<button type="button" data-act="add">+ ${isExp ? 'expense' : 'income'}</button>` : `<span class="small">max ${max}</span>`}</td></tr></table>`;
 }
 
+function goalTable(owner, items, weeklySavings) {
+  let html = `<table data-kind="goals" data-owner="${owner}"><tr><th>Goal</th><th>Target $</th><th>Weeks at current savings</th><th></th></tr>`;
+  for (const it of items) {
+    const target = goalDecode(it.code), wk = weeklySavings > 0 ? Math.ceil(target / weeklySavings) : null;
+    html += `<tr data-id="${it.id}"><td>${tagSelect(GOAL_TAGS, it.tag)}</td>
+      <td><input type="number" data-f="goal" value="${target}" min="0" max="${GOAL_MAX}" step="${target > 5110 ? 100 : 10}"></td>
+      <td>${target === 0 ? '' : wk === null ? '<span class="neg">never</span>' : `${wk} wk (${(wk / 52.18).toFixed(1)} yr)`}</td>
+      <td><button type="button" data-act="del">x</button></td></tr>`;
+  }
+  return html + `<tr><td colspan="4">${items.length < MAX_GOAL ? `<button type="button" data-act="add">+ goal</button>` : `<span class="small">max ${MAX_GOAL}</span>`}</td></tr></table>`;
+}
+const activeTab = {}; // owner id -> 0 income, 1 expenses, 2 goals (view state only)
+
 function render() {
   const c = calc(), days = c.days;
   $('#period').value = state.period; $('#customDays').value = state.customDays; $('#customDays').disabled = state.period !== 5;
@@ -166,12 +191,14 @@ function render() {
   let html = '';
   for (const col of [{ id: 'H', name: 'Shared / Household' }, ...state.people.map(p => ({ ...p, name: pname(p) }))]) {
     const isH = col.id === 'H';
-    const row = c.rows.find(r => r.name === col.name && !!r.isH === isH) || { income: 0, expense: 0 };
+    const row = c.rows.find(r => r.name === col.name && !!r.isH === isH) || { income: 0, expense: 0, savings: 0 };
     html += `<div class="col" data-owner="${col.id}" style="border-color:${isH ? '#333' : pcol(col)}"><h3>` +
       (isH ? esc(col.name) : `<span style="display:inline-block;width:14px;height:14px;background:${pcol(col)};vertical-align:middle"></span> ${esc(col.name)} ` +
         `<button type="button" data-act="delPerson">x</button>`) + `</h3>` +
-      lineTable('incomes', col.id, state.incomes.filter(i => i.owner === col.id), days) +
-      lineTable('expenses', col.id, state.expenses.filter(e => e.owner === col.id), days) +
+      `<div class="tabs">` + ['Income', 'Expenses', 'Goals'].map((t, i) => `<button type="button" data-tab="${i}" class="${(activeTab[col.id] || 0) === i ? 'on' : ''}">${t}</button>`).join('') + `</div>` +
+      [lineTable('incomes', col.id, state.incomes.filter(i => i.owner === col.id), days),
+       lineTable('expenses', col.id, state.expenses.filter(e => e.owner === col.id), days),
+       goalTable(col.id, (state.goals || []).filter(g => g.owner === col.id), (row.savings || 0) / days * 7)][activeTab[col.id] || 0] +
       `<div>Income ${fmt(row.income)} &minus; expenses ${fmt(row.expense)} = <b class="${cls(row.income - row.expense)}">${fmt(row.income - row.expense)}</b></div>` +
       (!isH && row.contribH ? `<div class="small">Share of household net: <span class="${cls(row.contribH)}">${fmt(row.contribH)}</span></div>` : '') + `</div>`;
   }
@@ -192,13 +219,16 @@ document.body.addEventListener('input', e => {
   const t = e.target, f = t.dataset.f; if (!f) return;
   const tr = t.closest('tr'), table = t.closest('table'), kind = table.dataset.kind;
   const item = state[kind].find(x => x.id === tr.dataset.id); if (!item) return;
-  if (f === 'amt') { item._raw = Number(t.value); return; } // commit on change
-  if (f === 'conv') return;
+  if (f === 'amt' || f === 'goal' || f === 'conv') return; // committed on change
   item[f] = Number(t.value);
   render();
 });
 document.body.addEventListener('change', e => {
   const t = e.target, f = t.dataset.f;
+  if (f === 'goal') {
+    const tr = t.closest('tr'), item = state.goals.find(x => x.id === tr.dataset.id); if (!item) return;
+    item.code = goalEncode(t.value); render(); return;
+  }
   if (f === 'amt' || f === 'conv') {
     const tr = t.closest('tr'), table = t.closest('table'), kind = table.dataset.kind;
     const item = state[kind].find(x => x.id === tr.dataset.id); if (!item) return;
@@ -210,6 +240,7 @@ document.body.addEventListener('change', e => {
 });
 
 document.body.addEventListener('click', e => {
+  if (e.target.dataset.tab !== undefined) { activeTab[e.target.closest('.col').dataset.owner] = Number(e.target.dataset.tab); render(); return; }
   const act = e.target.dataset.act; if (!act) return;
   if (act === 'add') {
     const table = e.target.closest('table');
@@ -223,6 +254,7 @@ document.body.addEventListener('click', e => {
     state.people = state.people.filter(p => p.id !== id);
     state.incomes = state.incomes.filter(i => i.owner !== id);
     state.expenses = state.expenses.filter(x => x.owner !== id);
+    state.goals = state.goals.filter(x => x.owner !== id);
   }
   render();
 });
@@ -249,7 +281,7 @@ $('#reset').onclick = () => { if (confirm('Clear everything?')) { state = defaul
 
 // ---------- bit-packed serialisation ----------
 // header: ver4 npeople-1 3. Colours come from position. View period is not encoded (viewer preference, kept in localStorage).
-// per owner (H, then people in order): ninc4, lines; nexp5, lines
+// per owner (H, then people in order): ninc4, lines; nexp5, lines; ngoal3, goals (tag6 code10)
 // line: tag6 code10 (scale1 + mantissa9) = 16 bits exactly
 class BitWriter {
   constructor() { this.bits = []; }
@@ -265,8 +297,8 @@ function encode(s) {
   bw.w(VERSION, 4); bw.w(s.people.length - 1, 3);
   const line = it => { bw.w(it.tag, 6); bw.w(it.code, 10); };
   for (const o of ['H', ...s.people.map(p => p.id)]) {
-    const inc = s.incomes.filter(i => i.owner === o).slice(0, MAX_INC), exp = s.expenses.filter(e => e.owner === o).slice(0, MAX_EXP);
-    bw.w(inc.length, 4); inc.forEach(line); bw.w(exp.length, 5); exp.forEach(line);
+    const inc = s.incomes.filter(i => i.owner === o).slice(0, MAX_INC), exp = s.expenses.filter(e => e.owner === o).slice(0, MAX_EXP), goal = (s.goals || []).filter(g => g.owner === o).slice(0, MAX_GOAL);
+    bw.w(inc.length, 4); inc.forEach(line); bw.w(exp.length, 5); exp.forEach(line); bw.w(goal.length, 3); goal.forEach(line);
   }
   return bw.bytes();
 }
@@ -276,11 +308,12 @@ function decode(bytes) {
   const pref = viewPrefs(); s.period = pref.period; s.customDays = pref.customDays;
   const np = br.r(3) + 1; s.people = [];
   for (let i = 0; i < np; i++) s.people.push({ id: uid() });
-  s.incomes = []; s.expenses = [];
+  s.incomes = []; s.expenses = []; s.goals = [];
   const line = owner => ({ id: uid(), owner, tag: br.r(6), code: br.r(10) });
   for (const o of ['H', ...s.people.map(p => p.id)]) {
     let n = br.r(4); for (let i = 0; i < n; i++) s.incomes.push(line(o));
     n = br.r(5); for (let i = 0; i < n; i++) s.expenses.push(line(o));
+    n = br.r(3); for (let i = 0; i < n; i++) s.goals.push(line(o));
   }
   return s;
 }
@@ -305,7 +338,7 @@ function updateLink() {
     } catch (e) { $('#qr').innerHTML = `<span class="small">QR unavailable</span>`; }
   }, 150);
 }
-function save() { try { localStorage.setItem('budget10', JSON.stringify(state)); localStorage.setItem('viewPrefs', JSON.stringify({ period: state.period, customDays: state.customDays })); } catch {} }
+function save() { try { localStorage.setItem('budget11', JSON.stringify(state)); localStorage.setItem('viewPrefs', JSON.stringify({ period: state.period, customDays: state.customDays })); } catch {} }
 function viewPrefs() { try { return JSON.parse(localStorage.getItem('viewPrefs')) || { period: 0, customDays: 90 }; } catch { return { period: 0, customDays: 90 }; } }
 
 // ---------- diff ----------
@@ -314,10 +347,10 @@ function diff(a, b) {
   if (a.people.length !== b.people.length) out.push(`people: ${a.people.length} → ${b.people.length}`);
   const n = Math.max(a.people.length, b.people.length);
   const ownerName = i => i === 0 ? 'Household' : (COLOURS[i - 1] ? COLOURS[i - 1][0] : `Person ${i}`);
-  const lines = (s, kind, i) => { const o = i === 0 ? 'H' : (s.people[i - 1] || {}).id; return s[kind].filter(x => x.owner === o); };
-  for (let i = 0; i <= n; i++) for (const kind of ['incomes', 'expenses']) {
-    const tags = kind === 'incomes' ? INCOME_TAGS : EXPENSE_TAGS, la = lines(a, kind, i), lb = lines(b, kind, i);
-    const label = x => `${tags[x.tag][1]} $${amtDecode(x.code)}/wk`;
+  const lines = (s, kind, i) => { const o = i === 0 ? 'H' : (s.people[i - 1] || {}).id; return (s[kind] || []).filter(x => x.owner === o); };
+  for (let i = 0; i <= n; i++) for (const kind of ['incomes', 'expenses', 'goals']) {
+    const tags = { incomes: INCOME_TAGS, expenses: EXPENSE_TAGS, goals: GOAL_TAGS }[kind], la = lines(a, kind, i), lb = lines(b, kind, i);
+    const label = x => kind === 'goals' ? `goal ${tags[x.tag][1]} $${goalDecode(x.code)}` : `${tags[x.tag][1]} $${amtDecode(x.code)}/wk`;
     // match identical lines first, then pair leftovers by tag as "changed", rest are added/removed
     const key = x => x.tag + ':' + x.code;
     const pool = new Map(); for (const y of lb) pool.set(key(y), (pool.get(key(y)) || 0) + 1);
@@ -344,7 +377,7 @@ function showIncoming(local, incoming, hash) {
 function load() {
   const hash = location.hash.slice(1);
   let local = null;
-  try { const s = localStorage.getItem('budget10'); if (s) local = JSON.parse(s); } catch {}
+  try { const s = localStorage.getItem('budget11'); if (s) local = JSON.parse(s); } catch {}
   if (hash) {
     let incoming;
     try { incoming = decode(b32.dec(hash)); } catch (e) { alert('Could not read budget from link: ' + e.message); incoming = null; }
@@ -361,6 +394,8 @@ function load() {
   inc(m, 'Salary', 800); inc(c, 'Salary', 2076.88);
   exp('H', 'Groceries', 75); exp('H', 'Electricity', 65); exp('H', 'Water', 0); exp('H', 'Internet', 11.25); exp('H', 'Buffer', 20);
   exp(m, 'Rent', 180); exp(m, 'Gym', 19); exp(m, 'Dance classes', 60); exp(m, 'Streaming', 5); exp(m, 'Pharmacy', 20); exp(m, 'Travel savings', 60); exp(m, 'Public transport', 60); exp(m, 'Fun money', 75);
+  state.goals.push({ id: uid(), owner: m, tag: tagIndex(GOAL_TAGS, 'Holiday'), code: goalEncode(4000) });
+  state.goals.push({ id: uid(), owner: c, tag: tagIndex(GOAL_TAGS, 'Holiday'), code: goalEncode(6000) });
   exp(c, 'Rent', 300); exp(c, 'Gym', 20); exp(c, 'Fuel', 100); exp(c, 'Streaming', 5); exp(c, 'Pharmacy', 5); exp(c, 'Health insurance', 45); exp(c, 'AI tools', 25); exp(c, 'Fun money', 75);
 }
 // hashchange fires when a link is pasted into this tab; our own replaceState does not trigger it
