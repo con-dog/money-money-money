@@ -157,8 +157,7 @@ const setLineAmt = (it, weekly, isExp) => { it.code = amtEncode(weekly, isExp); 
 function periodDays() { return PERIODS[state.period][1]; }
 const perPeriod = (it, days) => amtDecode(it.code) / 7 * days;
 
-function calc() {
-  const days = periodDays();
+function calc(days = periodDays()) {
   const r = {};
   for (const o of ['H', ...state.people.map(p => p.id)]) r[o] = { income: 0, expense: 0 };
   for (const i of state.incomes) if (r[i.owner]) r[i.owner].income += perPeriod(i, days);
@@ -184,17 +183,16 @@ const cls = n => n < 0 ? 'neg' : 'pos';
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const sel = (f, opts, val) => `<select data-f="${f}">` + opts.map((o, i) => `<option value="${i}" ${i === val ? 'selected' : ''}>${esc(o)}</option>`).join('') + `</select>`;
 
-function lineTable(kind, owner, items, days) {
+function lineTable(kind, owner, items) {
   const isExp = kind === 'expenses', tags = isExp ? EXPENSE_TAGS : INCOME_TAGS, max = isExp ? MAX_EXP : MAX_INC;
-  let html = `<table data-kind="${kind}" data-owner="${owner}"><tr><th>${isExp ? 'Expense' : 'Income'}</th><th>$/week</th><th>entered as</th><th>/period</th><th></th></tr>`;
+  let html = `<table data-kind="${kind}" data-owner="${owner}"><tr><th>${isExp ? 'Expense' : 'Income'}</th><th>$/week</th><th>entered as</th><th></th></tr>`;
   for (const it of items) {
     html += `<tr data-id="${it.id}"><td>${tagSelect(tags, it.tag)}</td>
       <td><input type="number" data-f="amt" value="${lineAmt(it)}" min="0" max="${AMT_MAX}" step="${lineAmt(it) > 511 ? 10 : 1}"></td>
       <td>${sel('conv', CONV.map(f => f[0]), 0)}</td>
-      <td>${fmt(perPeriod(it, days))}</td>
       <td><button type="button" data-act="del">x</button></td></tr>`;
   }
-  return html + `<tr><td colspan="5">${items.length < max ? `<button type="button" data-act="add">+ ${isExp ? 'expense' : 'income'}</button>` : `<span class="small">max ${max}</span>`}</td></tr></table>`;
+  return html + `<tr><td colspan="4">${items.length < max ? `<button type="button" data-act="add">+ ${isExp ? 'expense' : 'income'}</button>` : `<span class="small">max ${max}</span>`}</td></tr></table>`;
 }
 
 function goalTable(owner, items, weeklySavings) {
@@ -211,23 +209,23 @@ function goalTable(owner, items, weeklySavings) {
 const activeTab = {}; // owner id -> 0 income, 1 expenses, 2 goals (view state only)
 
 function render() {
-  const c = calc(), days = c.days;
+  const c = calc(), cw = calc(7); // cards are always weekly; the forecast table follows the view period
   $('#period').value = state.period;
 
 
   let html = '';
   for (const col of [{ id: 'H', name: 'Shared / Household' }, ...state.people.map(p => ({ ...p, name: pname(p) }))]) {
     const isH = col.id === 'H';
-    const row = c.rows.find(r => r.name === col.name && !!r.isH === isH) || { income: 0, expense: 0, savings: 0 };
+    const row = cw.rows.find(r => r.name === col.name && !!r.isH === isH) || { income: 0, expense: 0, savings: 0 };
     html += `<div class="col" data-owner="${col.id}" style="border-color:${isH ? '#333' : pcol(col)}"><h3>` +
       (isH ? esc(col.name) : `<span style="display:inline-block;width:14px;height:14px;background:${pcol(col)};vertical-align:middle"></span> ${esc(col.name)} ` +
         `<button type="button" data-act="delPerson">x</button>`) + `</h3>` +
       `<div class="tabs">` + ['Income', 'Expenses', 'Goals'].map((t, i) => `<button type="button" data-tab="${i}" class="${(activeTab[col.id] || 0) === i ? 'on' : ''}">${t}</button>`).join('') + `</div>` +
-      [lineTable('incomes', col.id, state.incomes.filter(i => i.owner === col.id), days),
-       lineTable('expenses', col.id, state.expenses.filter(e => e.owner === col.id), days),
-       goalTable(col.id, (state.goals || []).filter(g => g.owner === col.id), (row.savings || 0) / days * 7)][activeTab[col.id] || 0] +
-      `<div>Income ${fmt(row.income)} &minus; expenses ${fmt(row.expense)} = <b class="${cls(row.income - row.expense)}">${fmt(row.income - row.expense)}</b></div>` +
-      (!isH && row.contribH ? `<div class="small">Share of household net: <span class="${cls(row.contribH)}">${fmt(row.contribH)}</span></div>` : '') + `</div>`;
+      [lineTable('incomes', col.id, state.incomes.filter(i => i.owner === col.id)),
+       lineTable('expenses', col.id, state.expenses.filter(e => e.owner === col.id)),
+       goalTable(col.id, (state.goals || []).filter(g => g.owner === col.id), row.savings || 0)][activeTab[col.id] || 0] +
+      `<div>Income ${fmt(row.income)} &minus; expenses ${fmt(row.expense)} = <b class="${cls(row.income - row.expense)}">${fmt(row.income - row.expense)}</b> /week</div>` +
+      (!isH && row.contribH ? `<div class="small">Share of household net: <span class="${cls(row.contribH)}">${fmt(row.contribH)}</span> /week</div>` : '') + `</div>`;
   }
   const track = $('#track'), idx = curIndex();
   track.innerHTML = html;
@@ -235,9 +233,10 @@ function render() {
   updatePos();
 
   let f = `<tr><th>Bucket</th><th>Income</th><th>Expenses</th><th>Household share</th><th>Savings</th></tr>`;
+  const per = `per ${PERIODS[state.period][0].toLowerCase()}`;
   for (const r of c.rows) f += `<tr${r.isTotal ? ' style="font-weight:bold"' : ''}><td${r.colour ? ` style="border-left:6px solid ${r.colour}"` : ''}>${esc(r.name)}</td><td>${fmt(r.income)}</td><td>${fmt(r.expense)}</td>` +
     `<td>${r.isTotal || r.isH ? '' : fmt(r.contribH)}</td><td class="${cls(r.savings)}">${fmt(r.savings)}</td></tr>`;
-  $('#forecast').innerHTML = f;
+  $('#forecast').innerHTML = f + `<tr><td colspan="5" class="small">${per}</td></tr>`;
   updateLink();
 }
 
