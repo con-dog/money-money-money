@@ -5,14 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Household Budget</title>
 <style>
-  :root { color-scheme: light dark;
-    --bg: #fff; --fg: #111; --surface: #fff; --border: #999; --strong: #333; --muted: #555; --pos: #070; --neg: #b00; --neg-bg: #fde8e8; --btn: #efefef; --dot: #c8c8c8; }
-  @media (prefers-color-scheme: dark) { :root {
-    --bg: #161616; --fg: #e8e8e8; --surface: #1f1f1f; --border: #555; --strong: #bbb; --muted: #9a9a9a; --pos: #5fd35f; --neg: #ff6b6b; --neg-bg: #3a1b1b; --btn: #2b2b2b; --dot: #333; } }
+  :root { color-scheme: light;
+    --bg: #fff; --fg: #111; --surface: #fff; --border: #999; --strong: #333; --muted: #555; --pos: #070; --neg: #b00; --neg-bg: #fde8e8; --btn: #efefef;
+    --dots: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Crect x='6' y='6' width='2' height='2' fill='%23c8c8c8'/%3E%3C/svg%3E");
+    --caret: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 0h10L5 6z' fill='%23111'/%3E%3C/svg%3E"); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme=light]) { color-scheme: dark;
+    --bg: #161616; --fg: #e8e8e8; --surface: #1f1f1f; --border: #555; --strong: #bbb; --muted: #9a9a9a; --pos: #5fd35f; --neg: #ff6b6b; --neg-bg: #3a1b1b; --btn: #2b2b2b;
+    --dots: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Crect x='6' y='6' width='2' height='2' fill='%23383838'/%3E%3C/svg%3E");
+    --caret: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 0h10L5 6z' fill='%23e8e8e8'/%3E%3C/svg%3E"); } }
+  :root[data-theme=dark] { color-scheme: dark;
+    --bg: #161616; --fg: #e8e8e8; --surface: #1f1f1f; --border: #555; --strong: #bbb; --muted: #9a9a9a; --pos: #5fd35f; --neg: #ff6b6b; --neg-bg: #3a1b1b; --btn: #2b2b2b;
+    --dots: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Crect x='6' y='6' width='2' height='2' fill='%23383838'/%3E%3C/svg%3E");
+    --caret: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 0h10L5 6z' fill='%23e8e8e8'/%3E%3C/svg%3E"); }
   html, body { height: 100%; margin: 0; }
-  body { font-family: monospace; color: var(--fg); background-color: var(--bg);
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Crect x='6' y='6' width='2' height='2' fill='%23c8c8c8'/%3E%3C/svg%3E"); }
-  @media (prefers-color-scheme: dark) { body { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Crect x='6' y='6' width='2' height='2' fill='%23383838'/%3E%3C/svg%3E"); } }
+  body { font-family: monospace; color: var(--fg); background-color: var(--bg); background-image: var(--dots); }
   /* opaque surfaces so the dot matrix stays in the background only */
   .col, #forecast, #savsum, #incoming, .tabs button, #nav button, .arrow button, #down button, #up button, #pos, #bottom { background: var(--surface); }
   table { background: var(--surface); }
@@ -26,9 +32,7 @@
   input[type=number] { -moz-appearance: textfield; }
   input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
   input:disabled { background: var(--btn); color: var(--muted); border-color: var(--border); }
-  select { padding-right: 16px; background-repeat: no-repeat; background-position: right 3px center; background-size: 10px 6px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 0h10L5 6z' fill='%23111'/%3E%3C/svg%3E"); }
-  @media (prefers-color-scheme: dark) { select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 0h10L5 6z' fill='%23e8e8e8'/%3E%3C/svg%3E"); } }
+  select { padding-right: 16px; background-repeat: no-repeat; background-position: right 3px center; background-size: 10px 6px; background-image: var(--caret); }
   /* open dropdown list, where the browser lets the page style it (Chrome base-select); others keep the native list */
   select, ::picker(select) { appearance: base-select; }
   ::picker(select) { border: 2px solid var(--strong); background: var(--surface); color: var(--fg); padding: 0; }
@@ -79,7 +83,8 @@
   input.snapped { outline: 2px solid var(--pos); }
   .small { font-size: 0.85em; color: var(--muted); }
   h3 { margin: 4px 0; }
-  h1 { text-align: center; font-size: 1.3em; letter-spacing: 0.2em; margin: 4px 0 8px; padding-bottom: 6px; border-bottom: 3px solid var(--strong); }
+  h1 { position: relative; text-align: center; font-size: 1.3em; letter-spacing: 0.2em; margin: 4px 0 8px; padding-bottom: 6px; border-bottom: 3px solid var(--strong); }
+  #theme { position: absolute; right: 0; top: 0; font-size: 0.85em; letter-spacing: 0; padding: 2px 8px; line-height: 1.2; }
   h1 span { background: var(--surface); padding: 2px 10px; }
   #share { text-align: center; width: fit-content; align-self: center; padding: 12px; border: 3px solid var(--strong); }
   #savsum { margin-top: 12px; width: auto; min-width: 50%; }
@@ -99,7 +104,7 @@
 <body>
 <main>
 <section class="page" id="page1">
-<h1><span>BUDGET</span></h1>
+<h1><span>BUDGET</span><button type="button" id="theme" title="toggle light / dark">☾</button></h1>
 
 <div id="incoming" hidden></div>
 
@@ -429,6 +434,16 @@ document.body.addEventListener('pointerdown', e => {
   };
   document.addEventListener('pointermove', move); document.addEventListener('pointerup', up); document.addEventListener('pointercancel', up);
 });
+// theme: follows the system until the user toggles; the choice is kept locally
+function applyTheme() {
+  let t = null; try { t = localStorage.getItem('theme'); } catch {}
+  if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme;
+  const dark = t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  $('#theme').textContent = dark ? '☀' : '☾';
+}
+$('#theme').onclick = () => { const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; try { localStorage.setItem('theme', dark ? 'light' : 'dark'); } catch {} applyTheme(); };
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+applyTheme();
 $('#period').innerHTML = PERIODS.map((p, i) => `<option value="${i}">${p[0]}</option>`).join('');
 $('#period').onchange = e => { state.period = Number(e.target.value); render(); };
 $('#addPerson').onclick = () => { if (state.people.length >= MAX_PEOPLE) return alert(`Max ${MAX_PEOPLE} people`); state.people.push({ id: uid(), pct: 0 }); render(); };
