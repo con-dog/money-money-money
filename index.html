@@ -19,7 +19,7 @@
   .splitopts { display: grid; grid-template-columns: auto auto 1fr; column-gap: 8px; row-gap: 4px; align-items: center; margin: 4px 0 8px; }
   .splitopts label { margin: 0; }
   .tagcell { display: flex; align-items: center; gap: 4px; }
-  .gi { filter: grayscale(1) contrast(1.8); font-size: 1.1em; width: 1.3em; text-align: center; flex: none; }
+  .gi { font-size: 1.25em; line-height: 1; color: #000; width: 1.3em; text-align: center; flex: none; }
   .tagcell select { flex: 1; min-width: 0; }
   td, th { border: 1px solid #999; padding: 2px 4px; text-align: left; }
   select { max-width: 100%; }
@@ -137,7 +137,8 @@ const GOAL_TAGS = [['Other', 'Other'], ['Other', 'Other 2'],
   ['Fun', 'Holiday'], ['Fun', 'Tech'], ['Fun', 'Furniture'], ['Fun', 'Hobby gear'],
   ['Life', 'Education'], ['Life', 'Baby'], ['Life', 'Moving'], ['Life', 'Gift']];
 const tagIndex = (tags, name) => tags.findIndex(t => t[1] === name);
-const GROUP_ICON = { Other: '▫', Work: '💼', Passive: '🏦', Housing: '🏠', Utilities: '💡', Food: '🍽', Transport: '🚗', Health: '🩺', Lifestyle: '🎧', Family: '👪', Travel: '✈', Home: '🛋', Finance: '💳', Safety: '🛡', Big: '🏗', Fun: '🎉', Life: '🌱' };
+// monochrome text glyphs (U+FE0E forces text presentation where a font would otherwise pick the colour emoji)
+const GROUP_ICON = { Other: '·', Work: '⚙\uFE0E', Passive: '%', Housing: '⌂', Utilities: '⚡\uFE0E', Food: '☕\uFE0E', Transport: '⛽\uFE0E', Health: '✚', Lifestyle: '♫', Family: '☺\uFE0E', Travel: '✈\uFE0E', Home: '⚒\uFE0E', Finance: '⚖\uFE0E', Safety: '☂\uFE0E', Big: '▲', Fun: '★', Life: '✿' };
 const groupIcon = (tags, i) => `<span class="gi" title="${tags[i][0]}">${GROUP_ICON[tags[i][0]] || '▫'}</span>`;
 
 function tagSelect(tags, val) {
@@ -227,14 +228,23 @@ function lineTable(kind, owner, items) {
   return html + `<tr><td colspan="4">${items.length < max ? `<button type="button" data-act="add">+ ${isExp ? 'expense' : 'income'}</button>` : `<span class="small">max ${max}</span>`}</td></tr></table>`;
 }
 
-// Week-by-week timeline. Each person's savings pay their own goals in list order; what's left joins the
-// shared surplus to pay shared goals in list order. Returns goal id -> week reached (null = never).
+// Week-by-week timeline. Each bucket's money is split evenly across its unfinished goals every week.
+// A person's savings go to their own goals first; anything left joins the shared surplus for shared goals.
+// Returns goal id -> week reached (null = never).
 function goalTimeline(cw) {
   const MAX_WEEKS = 5200, done = {};
   const ps = state.people, rate = {}; for (const r of cw.rows) if (!r.isTotal) rate[r.isH ? 'H' : ps.find(p => pname(p) === r.name).id] = r.isH ? r.savings : r.savings;
   const rem = {}; for (const g of state.goals) { const t = goalDecode(g.code); if (t > 0) rem[g.id] = t; }
   const order = o => state.goals.filter(g => g.owner === o && rem[g.id] !== undefined && done[g.id] === undefined);
-  const pay = (o, avail, week) => { for (const g of order(o)) { if (avail <= 0) break; const p = Math.min(avail, rem[g.id]); rem[g.id] -= p; avail -= p; if (rem[g.id] <= 1e-9) done[g.id] = week; } return avail; };
+  const pay = (o, avail, week) => {
+    let open = order(o);
+    while (avail > 1e-9 && open.length) {
+      const each = avail / open.length;
+      for (const g of open) { const p = Math.min(each, rem[g.id]); rem[g.id] -= p; avail -= p; if (rem[g.id] <= 1e-9) done[g.id] = week; }
+      open = open.filter(g => done[g.id] === undefined); // finished goals free their share for the rest this same week
+    }
+    return avail;
+  };
   for (let w = 1; w <= MAX_WEEKS && Object.keys(rem).length > Object.keys(done).length; w++) {
     let pool = Math.max(0, rate['H'] || 0);
     for (const p of ps) pool += pay(p.id, Math.max(0, rate[p.id] || 0), w);
@@ -255,7 +265,6 @@ function goalTable(owner, items, timeline, funding) {
   }
   html += `<tr><td colspan="4">${items.length < MAX_GOAL ? `<button type="button" data-act="add">+ goal</button>` : `<span class="small">max ${MAX_GOAL}</span>`}</td></tr></table>`;
   if (funding) html += `<div class="small">Funded from: ${funding}</div>`;
-  html += `<div class="small">Goals are paid in order, top first.</div>`;
   return html;
 }
 function splitTable(share) {
