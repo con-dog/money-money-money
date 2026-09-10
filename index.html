@@ -5,12 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Household Budget</title>
 <style>
+  :root { color-scheme: light dark;
+    --bg: #fff; --fg: #111; --surface: #fff; --border: #999; --strong: #333; --muted: #555; --pos: #070; --neg: #b00; --neg-bg: #fde8e8; --btn: #efefef; --dot: #c8c8c8; }
+  @media (prefers-color-scheme: dark) { :root {
+    --bg: #161616; --fg: #e8e8e8; --surface: #1f1f1f; --border: #555; --strong: #bbb; --muted: #9a9a9a; --pos: #5fd35f; --neg: #ff6b6b; --neg-bg: #3a1b1b; --btn: #2b2b2b; --dot: #333; } }
   html, body { height: 100%; margin: 0; }
-  body { font-family: monospace; background-color: #fff;
+  body { font-family: monospace; color: var(--fg); background-color: var(--bg);
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Crect x='6' y='6' width='2' height='2' fill='%23c8c8c8'/%3E%3C/svg%3E"); }
+  @media (prefers-color-scheme: dark) { body { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Crect x='6' y='6' width='2' height='2' fill='%23383838'/%3E%3C/svg%3E"); } }
   /* opaque surfaces so the dot matrix stays in the background only */
-  .col, #forecast, #share, #incoming, .tabs button, #nav button, .arrow button, #down button, #up button, #pos, #bottom { background: #fff; }
-  table { background: #fff; }
+  .col, #forecast, #goalsum, #incoming, .tabs button, #nav button, .arrow button, #down button, #up button, #pos, #bottom { background: var(--surface); }
+  table { background: var(--surface); }
+  #share { background: #fff; color: #111; } /* QR stays black on white */
+  button { background: var(--btn); color: var(--fg); border: 1px solid var(--border); border-radius: 3px; }
   #pos { display: table; margin: 4px auto 0; padding: 2px 8px; }
   #bottom { display: inline-block; align-self: flex-start; padding: 2px 8px; margin-top: 8px; }
   main { height: 100dvh; overflow-y: auto; scroll-snap-type: y mandatory; }
@@ -18,43 +25,50 @@
   .arrow, #down, #up { text-align: center; padding: 4px 0; }
   .arrow button, #down button, #up button { font-size: 1.4em; padding: 2px 30px; }
   table { border-collapse: collapse; margin-bottom: 8px; width: 100%; table-layout: fixed; }
-  th.w-amt { width: 84px; } th.w-conv { width: 92px; } th.w-del { width: 34px; } th.w-wk { width: 30%; } th.w-pct { width: 64px; }
+  th.w-amt { width: 84px; } th.w-conv { width: 92px; } th.w-del { width: 34px; } th.w-wk { width: 124px; } th.w-pct { width: 64px; }
+  table[data-kind=goals] { min-width: 460px; }
+  .sheet { overflow-x: auto; min-width: 0; }
   td select, td input { width: 100%; box-sizing: border-box; }
   .sheet { flex: 1; min-height: 0; overflow-y: auto; }
-  .summary { border-top: 1px solid #999; padding-top: 4px; }
+  .summary { border-top: 1px solid var(--border); padding-top: 4px; }
   .splitopts { display: grid; grid-template-columns: auto auto 1fr; column-gap: 8px; row-gap: 4px; align-items: center; margin: 4px 0 8px; }
   .splitopts label { margin: 0; }
   th.sortable { cursor: pointer; user-select: none; }
   .tagcell { display: flex; align-items: center; gap: 4px; }
-  .drag { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; color: #666; padding: 0 2px; flex: none; }
-  .drag.off { color: #ccc; cursor: default; }
+  .drag { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; color: var(--muted); padding: 0 2px; flex: none; }
+  .drag.off { opacity: 0.35; cursor: default; }
   tr.dragging { opacity: 0.4; }
-  .gi { font-size: 1.25em; line-height: 1; color: #000; width: 1.3em; text-align: center; flex: none; }
+  .gi { font-size: 1.25em; line-height: 1; color: var(--fg); width: 1.3em; text-align: center; flex: none; }
   .tagcell select { flex: 1; min-width: 0; }
-  td, th { border: 1px solid #999; padding: 2px 4px; text-align: left; }
+  td, th { border: 1px solid var(--border); padding: 2px 4px; text-align: left; }
   select { max-width: 100%; }
   @media (max-width: 360px) {
     .page { padding: 4px; }
     body { font-size: 12px; }
-    th.w-amt { width: 64px; } th.w-conv { width: 70px; } th.w-del { width: 28px; } th.w-pct { width: 52px; }
+    th.w-amt { width: 64px; } th.w-conv { width: 70px; } th.w-del { width: 28px; } th.w-pct { width: 52px; } th.w-wk { width: 110px; }
+    table[data-kind=goals] { min-width: 400px; }
     td, th { padding: 1px 2px; }
     .col { padding: 4px; }
   }
-  .neg { color: #b00; }
-  .pos { color: #070; }
-  .small { font-size: 0.85em; color: #555; }
+  .neg { color: var(--neg); }
+  .pos { color: var(--pos); }
+  tr.red td { background: var(--neg-bg); }
+  tr.total { font-weight: bold; }
+  input.snapped { outline: 2px solid var(--pos); }
+  .small { font-size: 0.85em; color: var(--muted); }
   h3 { margin: 4px 0; }
-  #share { text-align: center; width: fit-content; align-self: center; padding: 12px; border: 3px solid #333; }
+  #share { text-align: center; width: fit-content; align-self: center; padding: 12px; border: 3px solid var(--strong); }
+  #goalsum { margin-top: 12px; }
   #qr svg { max-width: 90vw; max-height: 60vh; height: auto; }
   #share button { font-size: 1.2em; padding: 6px 24px; }
   #qr svg { display: block; margin: 0 auto; }
-  #incoming { border: 2px solid #b00; padding: 6px; margin: 8px 0; }
+  #incoming { border: 2px solid var(--neg); padding: 6px; margin: 8px 0; }
   #track { flex: 1; min-height: 0; display: flex; align-items: stretch; overflow-x: auto; scroll-snap-type: x mandatory; gap: 8px; scrollbar-width: none; }
   #track::-webkit-scrollbar { display: none; }
-  .col { flex: 0 0 100%; min-height: 0; display: flex; flex-direction: column; scroll-snap-align: start; box-sizing: border-box; border: 3px solid #333; padding: 6px; }
+  .col { flex: 0 0 100%; min-width: 0; min-height: 0; display: flex; flex-direction: column; scroll-snap-align: start; box-sizing: border-box; border: 3px solid var(--strong); padding: 6px; }
   .tabs { display: flex; gap: 4px; margin: 6px 0; }
   .tabs button { flex: 1; padding: 4px; }
-  .tabs button.on { background: #333; color: #fff; }
+  .tabs button.on { background: var(--strong); color: var(--bg); }
   #nav { display: flex; justify-content: space-between; align-items: center; margin: 6px 0; }
 </style>
 </head>
@@ -83,6 +97,7 @@
 </div>
 
 <table id="forecast"></table>
+<table id="goalsum" hidden></table>
 <div id="down2" class="arrow" style="margin-top:auto"><button type="button" id="downBtn2" title="share">&darr;</button></div>
 
 </section>
@@ -100,7 +115,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <script>
 // ---------- constants ----------
-const VERSION = 12;
+const VERSION = 1;
 const PERIODS = [['Week', 7], ['Fortnight', 14], ['Month', 30.4375], ['Quarter', 91.3125], ['Half year', 182.625], ['Year', 365.25]];
 // entry conversion helpers only; everything is stored per week
 const CONV = [['/wk', 1], ['/fn', 2], ['/mo', 30.4375 / 7], ['/qtr', 91.3125 / 7], ['/yr', 365.25 / 7]];
@@ -120,7 +135,11 @@ function amtEncode(weekly, roundUp) {
 const amtDecode = c => (c & 512) ? (c & 511) * 10 : c;
 // goal target, 10 bits: scale bit (x10 or x100) + 9-bit mantissa. $10 steps to $5110, $100 steps to $51,100. Rounds up.
 const GOAL_MAX = 51100;
-function goalEncode(v) { v = Math.min(GOAL_MAX, Math.max(0, Number(v) || 0)); const m = Math.ceil(v / 10 - 1e-9); return m <= 511 ? m : 512 | Math.min(511, Math.ceil(v / 100 - 1e-9)); }
+function goalEncode(v, roundUp = true) {
+  v = Math.min(GOAL_MAX, Math.max(0, Number(v) || 0));
+  const r = x => roundUp ? Math.ceil(x - 1e-9) : Math.floor(x + 1e-9);
+  const m = r(v / 10); return m <= 511 ? m : 512 | Math.min(511, r(v / 100));
+}
 const goalDecode = c => (c & 512) ? (c & 511) * 100 : c * 10;
 
 // tag 0 is always "Other". Max 64 per list (6 bits). [group, name]
@@ -188,15 +207,14 @@ function shares(r) {
   ps.forEach((p, i) => { const v = i === n - 1 ? 100 - acc : Math.round(raw[i]); out[p.id] = v; acc += v; });
   return out;
 }
-// goal split within a bucket: whole percents summing to 100
+// goal split within a bucket: whole percents, total at most 100. The remainder is unallocated.
+// A person's unallocated savings flow into the shared goal pool.
 function goalsOf(owner) { return state.goals.filter(g => g.owner === owner); }
+function allocated(owner, except) { return goalsOf(owner).filter(g => g !== except).reduce((s, g) => s + (Number(g.pct) || 0), 0); }
+function unallocated(owner) { return Math.max(0, 100 - allocated(owner)); }
 function setGoalPct(id, val) {
-  const g = state.goals.find(x => x.id === id), gs = goalsOf(g.owner), others = gs.filter(x => x !== g);
-  val = Math.max(0, Math.min(100, Math.round(Number(val) || 0)));
-  const rest = 100 - val, otot = others.reduce((s, x) => s + (Number(x.pct) || 0), 0);
-  let acc = 0;
-  others.forEach((x, i) => { const v = i === others.length - 1 ? rest - acc : Math.round(otot ? (Number(x.pct) || 0) / otot * rest : rest / others.length); x.pct = v; acc += v; });
-  g.pct = val;
+  const g = state.goals.find(x => x.id === id);
+  g.pct = Math.max(0, Math.min(100 - allocated(g.owner, g), Math.round(Number(val) || 0)));
 }
 function setPct(id, val) {
   // set one person's share and rebalance the others proportionally so the total stays 100
@@ -240,43 +258,59 @@ function lineTable(kind, owner, items) {
   let html = `<table data-kind="${kind}" data-owner="${owner}"><tr><th>${isExp ? 'Expense' : 'Income'}</th><th class="w-amt sortable" data-sort="${kind}" title="sort">$/week${SORT_ARROW[sortMode[kind]]}</th><th class="w-conv">entered as</th><th class="w-del"></th></tr>`;
   for (const it of sorted(kind, items, lineAmt)) {
     html += `<tr data-id="${it.id}"><td><div class="tagcell">${dragHandle(kind)}${groupIcon(tags, it.tag)}${tagSelect(tags, it.tag)}</div></td>
-      <td><input type="number" data-f="amt" value="${lineAmt(it)}" min="0" max="${AMT_MAX}" step="${lineAmt(it) > 511 ? 10 : 1}"></td>
+      <td><input type="number" data-f="amt" value="${lineAmt(it)}" min="0" max="${AMT_MAX}" step="${lineAmt(it) > 511 ? 10 : 1}"${noteAttr(it.id, 'amt')}></td>
       <td>${sel('conv', CONV.map(f => f[0]), 0)}</td>
       <td><button type="button" data-act="del">x</button></td></tr>`;
   }
-  return html + `<tr><td colspan="4">${items.length < max ? `<button type="button" data-act="add">+ ${isExp ? 'expense' : 'income'}</button>` : `<span class="small">max ${max}</span>`}</td></tr></table>`;
+  return html + `<tr><td colspan="4">${items.length < max ? `<button type="button" data-act="add">+ ${isExp ? 'expense' : 'income'}</button>` : `<span class="small">max ${max}</span>`}</td></tr></table>` + noteLine(items);
 }
 
 // Each goal receives exactly its split % of its bucket's weekly pool. 0% means nothing is allocated, ever.
-// Personal goals draw on that person's savings. Shared goals draw on the shared surplus plus everyone's savings.
-// Returns goal id -> weeks to reach (null = never).
+// Personal goals draw on that person's savings. Shared goals draw on the shared surplus plus each person's
+// unallocated savings (the part not claimed by their own goals). Returns goal id -> {weekly, remaining, weeks}
+// where weeks is 0 when already reached and null when never.
 function goalTimeline(cw) {
   const ps = state.people, rate = {};
   for (const r of cw.rows) if (!r.isTotal) rate[r.isH ? 'H' : ps.find(p => pname(p) === r.name).id] = Math.max(0, r.savings);
-  const pool = { H: (rate['H'] || 0) + ps.reduce((s, p) => s + (rate[p.id] || 0), 0) };
+  const contrib = {}; for (const p of ps) contrib[p.id] = (rate[p.id] || 0) * unallocated(p.id) / 100;
+  const pool = { H: (rate['H'] || 0) + ps.reduce((s, p) => s + contrib[p.id], 0) };
   for (const p of ps) pool[p.id] = rate[p.id] || 0;
-  const out = {};
+  const out = { _pool: pool, _contrib: contrib, _shared: rate['H'] || 0 };
   for (const g of state.goals) {
-    const target = goalDecode(g.code), weekly = (pool[g.owner] || 0) * (Number(g.pct) || 0) / 100;
-    out[g.id] = target <= 0 ? undefined : weekly > 0 ? Math.ceil(target / weekly - 1e-9) : null;
+    const target = goalDecode(g.code), saved = goalDecode(g.saved || 0), remaining = Math.max(0, target - saved);
+    const weekly = (pool[g.owner] || 0) * (Number(g.pct) || 0) / 100;
+    out[g.id] = { weekly, remaining, weeks: target <= 0 ? undefined : remaining <= 0 ? 0 : weekly > 0 ? Math.ceil(remaining / weekly - 1e-9) : null };
   }
   return out;
 }
+const reachedText = t => t.weeks === undefined ? '' : t.weeks === 0 ? '<span class="pos">reached</span>' : t.weeks === null ? '<span class="neg">never</span>' : `${t.weeks} wk (${(t.weeks / 52.18).toFixed(1)} yr)`;
 
 function goalTable(owner, items, timeline, funding) {
-  let html = `<table data-kind="goals" data-owner="${owner}"><tr><th>Goal</th><th class="w-amt sortable" data-sort="goals" title="sort">Target $${SORT_ARROW[sortMode.goals]}</th><th class="w-pct">Split %</th><th class="w-wk">Reached in</th><th class="w-del"></th></tr>`;
+  let html = `<table data-kind="goals" data-owner="${owner}"><tr><th>Goal</th><th class="w-amt sortable" data-sort="goals" title="sort">Target $${SORT_ARROW[sortMode.goals]}</th><th class="w-amt">Saved $</th><th class="w-pct">Split %</th><th class="w-wk">Reached in</th><th class="w-del"></th></tr>`;
   for (const it of sorted('goals', items, g => goalDecode(g.code))) {
-    const target = goalDecode(it.code), wk = timeline[it.id];
+    const target = goalDecode(it.code), saved = goalDecode(it.saved || 0), t = timeline[it.id] || {};
     html += `<tr data-id="${it.id}"><td><div class="tagcell">${dragHandle('goals')}${groupIcon(GOAL_TAGS, it.tag)}${tagSelect(GOAL_TAGS, it.tag)}</div></td>
-      <td><input type="number" data-f="goal" value="${target}" min="0" max="${GOAL_MAX}" step="${target > 5110 ? 100 : 10}"></td>
-      <td><input type="number" data-f="gpct" value="${it.pct || 0}" min="0" max="100" step="1"></td>
-      <td>${target === 0 ? '' : wk === null ? '<span class="neg">never</span>' : `${wk} wk (${(wk / 52.18).toFixed(1)} yr)`}</td>
+      <td><input type="number" data-f="goal" value="${target}" min="0" max="${GOAL_MAX}" step="${target > 5110 ? 100 : 10}"${noteAttr(it.id, 'goal')}></td>
+      <td><input type="number" data-f="saved" value="${saved}" min="0" max="${GOAL_MAX}" step="${saved > 5110 ? 100 : 10}"${noteAttr(it.id, 'saved')}></td>
+      <td><input type="number" data-f="gpct" value="${it.pct || 0}" min="0" max="${100 - allocated(owner, it)}" step="1"></td>
+      <td>${reachedText(t)}</td>
       <td><button type="button" data-act="del">x</button></td></tr>`;
   }
-  html += `<tr><td colspan="5">${items.length < MAX_GOAL ? `<button type="button" data-act="add">+ goal</button>` : `<span class="small">max ${MAX_GOAL}</span>`}</td></tr></table>`;
+  html += `<tr><td colspan="6">${items.length < MAX_GOAL ? `<button type="button" data-act="add">+ goal</button>` : `<span class="small">max ${MAX_GOAL}</span>`}</td></tr></table>`;
+  html += noteLine(items);
+  html += `<div class="small">Unallocated: ${unallocated(owner)}%${owner === 'H' ? '' : ' (goes to shared goals)'}</div>`;
   if (funding) html += `<div class="small">Funded from: ${funding}</div>`;
   return html;
 }
+
+// one-shot note when an entered value was snapped, e.g. "rounded up from 11.25 to 12"
+let lastNote = null; // {id, field, text}
+const noteAttr = (id, field) => lastNote && lastNote.id === id && lastNote.field === field ? ` title="${esc(lastNote.text)}" class="snapped"` : '';
+const noteLine = items => lastNote && items.some(x => x.id === lastNote.id) ? `<div class="small note">${esc(lastNote.text)}</div>` : '';
+function setNote(id, field, raw, snapped, dir) {
+  lastNote = Math.abs(raw - snapped) > 0.005 ? { id, field, text: `Rounded ${dir} from ${(+raw.toFixed(2))} to ${snapped}` } : null;
+}
+
 function splitTable(share) {
   const opts = [['Equal', 'Straight split between people'], ['Income', 'In proportion to each person\'s income'], ['Custom', 'Set each person\'s share']];
   let html = `<div class="splitopts">` + opts.map((o, i) => `<input type="radio" id="split${i}" name="split" value="${i}" ${state.split === i ? 'checked' : ''}><label for="split${i}"><b>${o[0]}</b></label><span class="small">${o[1]}</span>`).join('') + `</div>`;
@@ -285,6 +319,7 @@ function splitTable(share) {
     `<td><input type="number" data-f="pct" data-pid="${p.id}" min="0" max="100" step="1" value="${state.split === 2 ? p.pct : share[p.id]}" ${state.split === 2 ? '' : 'disabled'}></td></tr>`;
   return html + `</table>`;
 }
+
 // view-only sort per table kind: 0 as entered, 1 highest first, 2 lowest first
 const sortMode = { incomes: 0, expenses: 0, goals: 0 };
 const SORT_ARROW = ['', ' ▼', ' ▲'];
@@ -301,7 +336,7 @@ function render() {
   for (const col of [{ id: 'H', name: 'Shared / Household' }, ...state.people.map(p => ({ ...p, name: pname(p) }))]) {
     const isH = col.id === 'H';
     const row = cw.rows.find(r => isH ? r.isH : r.name === col.name && !r.isH) || { income: 0, expense: 0, savings: 0 };
-    html += `<div class="col" data-owner="${col.id}" style="border-color:${isH ? '#333' : pcol(col)}"><h3>` +
+    html += `<div class="col" data-owner="${col.id}" style="border-color:${isH ? 'var(--strong)' : pcol(col)}"><h3>` +
       (isH ? esc(col.name) : `<span style="display:inline-block;width:14px;height:14px;background:${pcol(col)};vertical-align:middle"></span> ${esc(col.name)} ` +
         `<button type="button" data-act="delPerson">x</button>`) + `</h3>` +
       `<div class="tabs">` + (isH ? ['Split', 'Income', 'Expenses', 'Goals'] : ['Income', 'Expenses', 'Goals']).map((t, i) => `<button type="button" data-tab="${i}" class="${(activeTab[col.id] || 0) === i ? 'on' : ''}">${t}</button>`).join('') + `</div><div class="sheet">` +
@@ -309,7 +344,7 @@ function render() {
        lineTable('incomes', col.id, state.incomes.filter(i => i.owner === col.id)),
        lineTable('expenses', col.id, state.expenses.filter(e => e.owner === col.id)),
        goalTable(col.id, (state.goals || []).filter(g => g.owner === col.id), timeline,
-         isH ? [`shared ${fmt(row.savings || 0)}`, ...cw.rows.filter(r => !r.isH && !r.isTotal).map(r => `${r.name} ${fmt(Math.max(0, r.savings))}`)].join(' + ') + ` = ${fmt(row.goalPool || 0)} /week` : null)][activeTab[col.id] || 0] +
+         isH ? [`shared ${fmt(timeline._shared)}`, ...state.people.map(p => `${pname(p)} ${fmt(timeline._contrib[p.id])}`)].join(' + ') + ` = ${fmt(timeline._pool.H)} /week` : null)][activeTab[col.id] || 0] +
       `</div><div class="summary">Income ${fmt(row.income)} &minus; expenses ${fmt(row.expense)} = <b class="${cls(row.income - row.expense)}">${fmt(row.income - row.expense)}</b> /week</div>` +
       (!isH && row.contribH ? `<div class="small">Share of household net: <span class="${cls(row.contribH)}">${fmt(row.contribH)}</span> /week</div>` : '') + `</div>`;
   }
@@ -320,9 +355,17 @@ function render() {
 
   let f = `<tr><th>Bucket</th><th>Income</th><th>Expenses</th><th>Household share</th><th>Savings</th></tr>`;
   const per = `per ${PERIODS[state.period][0].toLowerCase()}`;
-  for (const r of c.rows) f += `<tr${r.isTotal ? ' style="font-weight:bold"' : ''}><td${r.colour ? ` style="border-left:6px solid ${r.colour}"` : ''}>${esc(r.name)}</td><td>${fmt(r.income)}</td><td>${fmt(r.expense)}</td>` +
+  for (const r of c.rows) f += `<tr class="${r.isTotal ? 'total' : ''}${!r.isH && !r.isTotal && r.savings < 0 ? ' red' : ''}"><td${r.colour ? ` style="border-left:6px solid ${r.colour}"` : ''}>${esc(r.name)}</td><td>${fmt(r.income)}</td><td>${fmt(r.expense)}</td>` +
     `<td>${r.isTotal || r.isH ? '' : fmt(r.contribH)}</td><td class="${cls(r.savings)}">${fmt(r.savings)}</td></tr>`;
   $('#forecast').innerHTML = f + `<tr><td colspan="5" class="small">${per}</td></tr>`;
+  // goals summary across all buckets, soonest first; reached first, never last
+  const gs = state.goals.map(g => ({ g, t: timeline[g.id] || {}, who: g.owner === 'H' ? { name: 'Shared', colour: null } : { name: pname(state.people.find(p => p.id === g.owner)), colour: pcol(state.people.find(p => p.id === g.owner)) } }))
+    .filter(x => x.t.weeks !== undefined)
+    .sort((a, b) => (a.t.weeks === null ? Infinity : a.t.weeks) - (b.t.weeks === null ? Infinity : b.t.weeks));
+  let gsum = `<tr><th>Who</th><th>Goal</th><th>Target</th><th>Saved</th><th>$/week</th><th>Reached in</th></tr>`;
+  for (const x of gs) gsum += `<tr><td${x.who.colour ? ` style="border-left:6px solid ${x.who.colour}"` : ''}>${esc(x.who.name)}</td><td>${esc(GOAL_TAGS[x.g.tag][1])}</td><td>${fmt(goalDecode(x.g.code))}</td><td>${fmt(goalDecode(x.g.saved || 0))}</td><td>${fmt(x.t.weekly)}</td><td>${reachedText(x.t)}</td></tr>`;
+  $('#goalsum').innerHTML = gs.length ? gsum : '';
+  $('#goalsum').hidden = !gs.length;
   updateLink();
 }
 
@@ -331,7 +374,7 @@ document.body.addEventListener('input', e => {
   const t = e.target, f = t.dataset.f; if (!f) return;
   const tr = t.closest('tr'), table = t.closest('table'), kind = table.dataset.kind;
   const item = state[kind].find(x => x.id === tr.dataset.id); if (!item) return;
-  if (f === 'amt' || f === 'goal' || f === 'gpct' || f === 'conv' || f === 'pct') return; // committed on change
+  if (f === 'amt' || f === 'goal' || f === 'saved' || f === 'gpct' || f === 'conv' || f === 'pct') return; // committed on change
   item[f] = Number(t.value);
   render();
 });
@@ -339,9 +382,12 @@ document.body.addEventListener('change', e => {
   const t = e.target, f = t.dataset.f;
   if (t.name === 'split') { state.split = Number(t.value); render(); return; }
   if (f === 'pct') { setPct(t.dataset.pid, t.value); render(); return; }
-  if (f === 'goal' || f === 'gpct') {
+  if (f === 'goal' || f === 'saved' || f === 'gpct') {
     const tr = t.closest('tr'), item = state.goals.find(x => x.id === tr.dataset.id); if (!item) return;
-    if (f === 'goal') item.code = goalEncode(t.value); else setGoalPct(item.id, t.value);
+    lastNote = null;
+    if (f === 'goal') { item.code = goalEncode(t.value, true); setNote(item.id, 'goal', Number(t.value) || 0, goalDecode(item.code), 'up'); }
+    else if (f === 'saved') { item.saved = goalEncode(t.value, false); setNote(item.id, 'saved', Number(t.value) || 0, goalDecode(item.saved), 'down'); }
+    else setGoalPct(item.id, t.value);
     render(); return;
   }
   if (f === 'amt' || f === 'conv') {
@@ -350,6 +396,7 @@ document.body.addEventListener('change', e => {
     // amount typed is interpreted at the "entered as" unit, converted to weekly, then snapped
     const raw = Number(tr.querySelector('[data-f=amt]').value) || 0, conv = CONV[Number(tr.querySelector('[data-f=conv]').value)][1];
     setLineAmt(item, raw / conv, kind === 'expenses'); delete item._raw;
+    setNote(item.id, 'amt', raw / conv, lineAmt(item), kind === 'expenses' ? 'up' : 'down');
     render();
   }
 });
@@ -361,12 +408,10 @@ document.body.addEventListener('click', e => {
   if (act === 'add') {
     const table = e.target.closest('table');
     const kind = table.dataset.kind, owner = table.dataset.owner;
-    state[kind].push({ id: uid(), owner, tag: 2, code: 0, pct: kind === 'goals' && goalsOf(owner).length === 0 ? 100 : 0 });
+    state[kind].push({ id: uid(), owner, tag: 2, code: 0, saved: 0, pct: kind === 'goals' ? unallocated(owner) : 0 });
   } else if (act === 'del') {
     const table = e.target.closest('table'), tr = e.target.closest('tr'), kind = table.dataset.kind;
-    const gone = state[kind].find(x => x.id === tr.dataset.id);
     state[kind] = state[kind].filter(x => x.id !== tr.dataset.id);
-    if (kind === 'goals' && gone) { const gs = goalsOf(gone.owner); if (gs.length) setGoalPct(gs[0].id, (Number(gs[0].pct) || 0) + (Number(gone.pct) || 0)); }
   } else if (act === 'delPerson') {
     const id = e.target.closest('.col').dataset.owner;
     if (!confirm('Remove this person and all their lines?')) return;
@@ -426,7 +471,7 @@ $('#addPerson').onclick = () => { if (state.people.length >= MAX_PEOPLE) return 
 
 // ---------- bit-packed serialisation ----------
 // header: ver4 npeople-1 3 split2 [pct7 per person if custom]. Colours come from position. View period is not encoded.
-// per owner (H, then people in order): ninc4, lines; nexp5, lines; ngoal3, goals (tag6 code10 pct7)
+// per owner (H, then people in order): ninc4, lines; nexp5, lines; ngoal3, goals (tag6 target10 saved10 pct7)
 // line: tag6 code10 (scale1 + mantissa9) = 16 bits exactly
 class BitWriter {
   constructor() { this.bits = []; }
@@ -445,7 +490,7 @@ function encode(s) {
   for (const o of ['H', ...s.people.map(p => p.id)]) {
     const inc = s.incomes.filter(i => i.owner === o).slice(0, MAX_INC), exp = s.expenses.filter(e => e.owner === o).slice(0, MAX_EXP), goal = (s.goals || []).filter(g => g.owner === o).slice(0, MAX_GOAL);
     bw.w(inc.length, 4); inc.forEach(line); bw.w(exp.length, 5); exp.forEach(line);
-    bw.w(goal.length, 3); goal.forEach(g => { line(g); bw.w(Math.max(0, Math.min(100, Math.round(g.pct) || 0)), 7); });
+    bw.w(goal.length, 3); goal.forEach(g => { line(g); bw.w(g.saved || 0, 10); bw.w(Math.max(0, Math.min(100, Math.round(g.pct) || 0)), 7); });
   }
   return bw.bytes();
 }
@@ -462,7 +507,7 @@ function decode(bytes) {
   for (const o of ['H', ...s.people.map(p => p.id)]) {
     let n = br.r(4); for (let i = 0; i < n; i++) s.incomes.push(line(o));
     n = br.r(5); for (let i = 0; i < n; i++) s.expenses.push(line(o));
-    n = br.r(3); for (let i = 0; i < n; i++) { const g = line(o); g.pct = br.r(7); s.goals.push(g); }
+    n = br.r(3); for (let i = 0; i < n; i++) { const g = line(o); g.saved = br.r(10); g.pct = br.r(7); s.goals.push(g); }
   }
   return s;
 }
@@ -487,7 +532,7 @@ function updateLink() {
     } catch (e) { $('#qr').innerHTML = `<span class="small">QR unavailable</span>`; }
   }, 150);
 }
-function save() { try { localStorage.setItem('budget13', JSON.stringify(state)); localStorage.setItem('viewPrefs', JSON.stringify({ period: state.period })); } catch {} }
+function save() { try { localStorage.setItem('budget14', JSON.stringify(state)); localStorage.setItem('viewPrefs', JSON.stringify({ period: state.period })); } catch {} }
 function viewPrefs() { try { const p = JSON.parse(localStorage.getItem('viewPrefs')); return p && PERIODS[p.period] ? p : { period: 0 }; } catch { return { period: 0 }; } }
 
 // ---------- diff ----------
@@ -501,9 +546,9 @@ function diff(a, b) {
   const lines = (s, kind, i) => { const o = i === 0 ? 'H' : (s.people[i - 1] || {}).id; return (s[kind] || []).filter(x => x.owner === o); };
   for (let i = 0; i <= n; i++) for (const kind of ['incomes', 'expenses', 'goals']) {
     const tags = { incomes: INCOME_TAGS, expenses: EXPENSE_TAGS, goals: GOAL_TAGS }[kind], la = lines(a, kind, i), lb = lines(b, kind, i);
-    const label = x => kind === 'goals' ? `goal ${tags[x.tag][1]} $${goalDecode(x.code)} ${x.pct || 0}%` : `${tags[x.tag][1]} $${amtDecode(x.code)}/wk`;
+    const label = x => kind === 'goals' ? `goal ${tags[x.tag][1]} $${goalDecode(x.code)} (saved $${goalDecode(x.saved || 0)}) ${x.pct || 0}%` : `${tags[x.tag][1]} $${amtDecode(x.code)}/wk`;
     // match identical lines first, then pair leftovers by tag as "changed", rest are added/removed
-    const key = x => x.tag + ':' + x.code + ':' + (x.pct || 0);
+    const key = x => x.tag + ':' + x.code + ':' + (x.saved || 0) + ':' + (x.pct || 0);
     const pool = new Map(); for (const y of lb) pool.set(key(y), (pool.get(key(y)) || 0) + 1);
     const rem = [], add = [];
     for (const x of la) { const k = key(x); if (pool.get(k)) pool.set(k, pool.get(k) - 1); else rem.push(x); }
@@ -528,7 +573,7 @@ function showIncoming(local, incoming, hash) {
 function load() {
   const hash = location.hash.slice(1);
   let local = null;
-  try { const s = localStorage.getItem('budget13'); if (s) local = JSON.parse(s); } catch {}
+  try { const s = localStorage.getItem('budget14'); if (s) local = JSON.parse(s); } catch {}
   if (hash) {
     let incoming;
     try { incoming = decode(b32.dec(hash)); } catch (e) { alert('Could not read budget from link: ' + e.message); incoming = null; }
@@ -545,8 +590,8 @@ function load() {
   inc(m, 'Salary', 800); inc(c, 'Salary', 2076.88);
   exp('H', 'Groceries', 75); exp('H', 'Electricity', 65); exp('H', 'Water', 0); exp('H', 'Internet', 11.25); exp('H', 'Buffer', 20);
   exp(m, 'Rent', 180); exp(m, 'Gym', 19); exp(m, 'Dance classes', 60); exp(m, 'Streaming', 5); exp(m, 'Pharmacy', 20); exp(m, 'Travel savings', 60); exp(m, 'Public transport', 60); exp(m, 'Fun money', 75);
-  state.goals.push({ id: uid(), owner: m, tag: tagIndex(GOAL_TAGS, 'Holiday'), code: goalEncode(4000), pct: 100 });
-  state.goals.push({ id: uid(), owner: c, tag: tagIndex(GOAL_TAGS, 'Holiday'), code: goalEncode(6000), pct: 100 });
+  state.goals.push({ id: uid(), owner: m, tag: tagIndex(GOAL_TAGS, 'Holiday'), code: goalEncode(4000), saved: goalEncode(500, false), pct: 60 });
+  state.goals.push({ id: uid(), owner: c, tag: tagIndex(GOAL_TAGS, 'Holiday'), code: goalEncode(6000), saved: 0, pct: 50 });
   exp(c, 'Rent', 300); exp(c, 'Gym', 20); exp(c, 'Fuel', 100); exp(c, 'Streaming', 5); exp(c, 'Pharmacy', 5); exp(c, 'Health insurance', 45); exp(c, 'AI tools', 25); exp(c, 'Fun money', 75);
 }
 // hashchange fires when a link is pasted into this tab; our own replaceState does not trigger it
