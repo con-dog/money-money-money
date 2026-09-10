@@ -5,46 +5,53 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Household Budget</title>
 <style>
-  body { font-family: monospace; margin: 12px; }
-  table { border-collapse: collapse; margin-bottom: 8px; }
+  body { font-family: monospace; margin: 0; padding: 12px; }
+  main { max-width: 520px; margin: 0 auto; }
+  table { border-collapse: collapse; margin-bottom: 8px; width: 100%; }
   td, th { border: 1px solid #999; padding: 2px 4px; text-align: left; }
-  input[type=number] { width: 80px; }
-  .col { display: inline-block; vertical-align: top; border: 2px solid #333; padding: 6px; margin: 4px; }
+  input[type=number] { width: 70px; }
+  select { max-width: 150px; }
   .neg { color: #b00; }
   .pos { color: #070; }
   .small { font-size: 0.85em; color: #555; }
-  #link { width: 100%; }
   h3 { margin: 4px 0; }
-  #qr { margin-top: 6px; }
+  #share { text-align: center; margin-bottom: 12px; }
+  #share button { font-size: 1.2em; padding: 6px 24px; }
+  #qr svg { display: block; margin: 0 auto; }
+  #incoming { border: 2px solid #b00; padding: 6px; margin: 8px 0; }
+  #track { display: flex; align-items: flex-start; overflow-x: auto; scroll-snap-type: x mandatory; gap: 8px; scrollbar-width: none; }
+  #track::-webkit-scrollbar { display: none; }
+  .col { flex: 0 0 100%; scroll-snap-align: start; box-sizing: border-box; border: 3px solid #333; padding: 6px; }
+  #nav { display: flex; justify-content: space-between; align-items: center; margin: 6px 0; }
+  #bottom { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
 </style>
 </head>
 <body>
+<main>
 
-<h2>Household Budget</h2>
-
-<div>
-  View period:
-  <select id="period"></select>
-  <input type="number" id="customDays" value="90" min="1" max="4095" style="width:70px" disabled>
-  &nbsp;&nbsp; <button type="button" id="addPerson">+ Person</button>
-  <button type="button" id="reset">Reset</button>
+<div id="share">
+  <div id="qr"></div>
+  <button type="button" id="shareBtn">SHARE</button>
+  <div id="shareMsg" class="small">&nbsp;</div>
 </div>
-<div class="small">Everything is stored per week. Amounts are exact to $1 up to $511/wk and to $10 up to $5110/wk (income rounds down, expenses up). Each line is exactly 2 bytes.</div>
 
-<div id="incoming-top"></div>
-<div id="columns"></div>
+<div id="incoming" hidden></div>
 
-<h3>Savings forecast for this period</h3>
+<div id="nav">
+  <button type="button" id="prev">&larr;</button>
+  <span id="pos"></span>
+  <button type="button" id="next">&rarr;</button>
+</div>
+<div id="track"></div>
+
+<div id="bottom">
+  <span>View: <select id="period"></select> <input type="number" id="customDays" value="90" min="1" max="4095" style="width:60px" disabled></span>
+  <span><button type="button" id="addPerson">+ Person</button> <button type="button" id="reset">Reset</button></span>
+</div>
+
 <table id="forecast"></table>
 
-<div id="incoming" hidden style="border:2px solid #b00;padding:6px;margin:8px 0"></div>
-
-<h3>Share</h3>
-<input type="text" id="link" readonly>
-<button type="button" id="copy">Copy link</button>
-<span id="linkInfo" class="small"></span>
-<div id="qr"></div>
-
+</main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <script>
 // ---------- constants ----------
@@ -168,7 +175,10 @@ function render() {
       `<div>Income ${fmt(row.income)} &minus; expenses ${fmt(row.expense)} = <b class="${cls(row.income - row.expense)}">${fmt(row.income - row.expense)}</b></div>` +
       (!isH && row.contribH ? `<div class="small">Share of household net: <span class="${cls(row.contribH)}">${fmt(row.contribH)}</span></div>` : '') + `</div>`;
   }
-  $('#columns').innerHTML = html;
+  const track = $('#track'), idx = curIndex();
+  track.innerHTML = html;
+  track.scrollLeft = idx * track.clientWidth;
+  updatePos();
 
   let f = `<tr><th>Bucket</th><th>Income</th><th>Expenses</th><th>Household share</th><th>Savings</th></tr>`;
   for (const r of c.rows) f += `<tr${r.isTotal ? ' style="font-weight:bold"' : ''}><td${r.colour ? ` style="border-left:6px solid ${r.colour}"` : ''}>${esc(r.name)}</td><td>${fmt(r.income)}</td><td>${fmt(r.expense)}</td>` +
@@ -216,12 +226,26 @@ document.body.addEventListener('click', e => {
   }
   render();
 });
+const curIndex = () => { const t = $('#track'); return t.clientWidth ? Math.round(t.scrollLeft / t.clientWidth) : 0; };
+function updatePos() { const t = $('#track'), n = t.children.length; $('#pos').textContent = n ? `${curIndex() + 1} / ${n}` : ''; }
+$('#track').addEventListener('scroll', updatePos);
+const go = d => { const t = $('#track'); t.scrollTo({ left: Math.max(0, Math.min(t.children.length - 1, curIndex() + d)) * t.clientWidth, behavior: 'smooth' }); };
+$('#prev').onclick = () => go(-1);
+$('#next').onclick = () => go(1);
+window.addEventListener('resize', () => { const t = $('#track'); t.scrollLeft = curIndex() * t.clientWidth; });
+$('#shareBtn').onclick = async () => {
+  const url = location.href;
+  try {
+    if (navigator.share) { await navigator.share({ url }); $('#shareMsg').textContent = 'shared'; }
+    else { await navigator.clipboard.writeText(url); $('#shareMsg').textContent = 'link copied'; }
+  } catch { try { await navigator.clipboard.writeText(url); $('#shareMsg').textContent = 'link copied'; } catch { $('#shareMsg').textContent = url; } }
+  setTimeout(() => { $('#shareMsg').innerHTML = '&nbsp;'; }, 2000);
+};
 $('#period').innerHTML = PERIODS.map((p, i) => `<option value="${i}">${p[0]}</option>`).join('');
 $('#period').onchange = e => { state.period = Number(e.target.value); render(); };
 $('#customDays').oninput = e => { state.customDays = Math.min(4095, Number(e.target.value)); render(); };
 $('#addPerson').onclick = () => { if (state.people.length >= MAX_PEOPLE) return alert(`Max ${MAX_PEOPLE} people`); state.people.push({ id: uid() }); render(); };
 $('#reset').onclick = () => { if (confirm('Clear everything?')) { state = defaultState(); render(); } };
-$('#copy').onclick = () => navigator.clipboard.writeText($('#link').value).then(() => $('#linkInfo').textContent += ' — copied');
 
 // ---------- bit-packed serialisation ----------
 // header: ver4 npeople-1 3. Colours come from position. View period is not encoded (viewer preference, kept in localStorage).
@@ -272,16 +296,13 @@ function updateLink() {
   save();
   clearTimeout(linkTimer);
   linkTimer = setTimeout(() => {
-    const bytes = encode(state), enc = b32.enc(bytes);
+    const enc = b32.enc(encode(state));
     history.replaceState(null, '', '#' + enc);
     const url = location.href, prefix = url.slice(0, url.indexOf('#') + 1);
-    $('#link').value = url;
-    const nl = state.incomes.length + state.expenses.length;
-    $('#linkInfo').textContent = `${bytes.length} bytes → ${enc.length} chars (${nl} lines × 2 bytes + ${(4 + 3 + (state.people.length + 1) * 9)} header bits); full URL ${url.length} chars`;
     try {
       const qr = qrcode(0, 'L'); qr.addData(prefix, 'Byte'); qr.addData(enc, 'Alphanumeric'); qr.make();
-      $('#qr').innerHTML = qr.createSvgTag({ cellSize: 3, margin: 4 }) + `<div class="small">QR version ${(qr.getModuleCount() - 17) / 4} (${qr.getModuleCount()}×${qr.getModuleCount()})</div>`;
-    } catch (e) { $('#qr').innerHTML = `<span class="small">QR unavailable (${esc(e.message)})</span>`; }
+      $('#qr').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 2 });
+    } catch (e) { $('#qr').innerHTML = `<span class="small">QR unavailable</span>`; }
   }, 150);
 }
 function save() { try { localStorage.setItem('budget10', JSON.stringify(state)); localStorage.setItem('viewPrefs', JSON.stringify({ period: state.period, customDays: state.customDays })); } catch {} }
@@ -314,7 +335,7 @@ function showIncoming(local, incoming, hash) {
   const d = diff(local, incoming), box = $('#incoming');
   box.innerHTML = `<b>Incoming link differs from your saved budget</b> (${d.length} change${d.length === 1 ? '' : 's'}):<br>` +
     d.map(esc).join('<br>') + `<br><button type="button" id="takeTheirs">Take theirs</button> <button type="button" id="keepMine">Keep mine</button>`;
-  box.hidden = false; $('#incoming-top').appendChild(box);
+  box.hidden = false;
   $('#takeTheirs').onclick = () => { state = incoming; box.innerHTML = `<b>Loaded incoming link.</b> Changes from your previous version:<br>` + d.map(esc).join('<br>') + `<br><button type="button" id="dismiss">Dismiss</button>`; $('#dismiss').onclick = () => { box.hidden = true; }; render(); };
   $('#keepMine').onclick = () => { box.hidden = true; state = local; render(); };
   state = local; render();
