@@ -63,7 +63,7 @@
 <div id="up"><button type="button" id="upBtn" title="entries">&uarr;</button></div>
 
 <div id="bottom">
-  View: <select id="period"></select> <input type="number" id="customDays" value="90" min="1" max="4095" style="width:60px" hidden> <span id="customDaysLbl" hidden>days</span>
+  View: <select id="period"></select>
 
 </div>
 
@@ -86,7 +86,7 @@
 <script>
 // ---------- constants ----------
 const VERSION = 10;
-const PERIODS = [['Week', 7], ['Fortnight', 14], ['Month', 30.4375], ['Quarter', 91.3125], ['Year', 365.25], ['Custom days', 0]];
+const PERIODS = [['Week', 7], ['Fortnight', 14], ['Month', 30.4375], ['Quarter', 91.3125], ['Half year', 182.625], ['Year', 365.25]];
 // entry conversion helpers only; everything is stored per week
 const CONV = [['/wk', 1], ['/fn', 2], ['/mo', 30.4375 / 7], ['/qtr', 91.3125 / 7], ['/yr', 365.25 / 7]];
 const MAX_PEOPLE = 8, MAX_INC = 15, MAX_EXP = 31, MAX_GOAL = 7;
@@ -144,7 +144,7 @@ function tagSelect(tags, val) {
 // lines: {id, owner, tag, code}   weekly amount = amtDecode(code)
 let state = defaultState();
 function defaultState() {
-  return { period: 0, customDays: 90, people: [{ id: uid() }, { id: uid() }], incomes: [], expenses: [], goals: [] }; // goals: {id, owner, tag, code}
+  return { period: 0, people: [{ id: uid() }, { id: uid() }], incomes: [], expenses: [], goals: [] }; // goals: {id, owner, tag, code}
 }
 function uid() { return Math.random().toString(36).slice(2, 7); }
 const pidx = p => state.people.findIndex(q => q.id === p.id);
@@ -154,7 +154,7 @@ const lineAmt = it => amtDecode(it.code);
 const setLineAmt = (it, weekly, isExp) => { it.code = amtEncode(weekly, isExp); };
 
 // ---------- calc ----------
-function periodDays() { return PERIODS[state.period][1] || Math.max(1, Number(state.customDays) || 1); }
+function periodDays() { return PERIODS[state.period][1]; }
 const perPeriod = (it, days) => amtDecode(it.code) / 7 * days;
 
 function calc() {
@@ -212,7 +212,7 @@ const activeTab = {}; // owner id -> 0 income, 1 expenses, 2 goals (view state o
 
 function render() {
   const c = calc(), days = c.days;
-  $('#period').value = state.period; $('#customDays').value = state.customDays; $('#customDays').hidden = state.period !== 5; $('#customDaysLbl').hidden = state.period !== 5;
+  $('#period').value = state.period;
 
 
   let html = '';
@@ -306,7 +306,6 @@ $('#shareBtn').onclick = async () => {
 };
 $('#period').innerHTML = PERIODS.map((p, i) => `<option value="${i}">${p[0]}</option>`).join('');
 $('#period').onchange = e => { state.period = Number(e.target.value); render(); };
-$('#customDays').oninput = e => { state.customDays = Math.min(4095, Number(e.target.value)); render(); };
 $('#addPerson').onclick = () => { if (state.people.length >= MAX_PEOPLE) return alert(`Max ${MAX_PEOPLE} people`); state.people.push({ id: uid() }); render(); };
 
 // ---------- bit-packed serialisation ----------
@@ -335,7 +334,7 @@ function encode(s) {
 function decode(bytes) {
   const br = new BitReader(bytes), s = {};
   const v = br.r(4); if (v !== VERSION) throw new Error('unknown version ' + v);
-  const pref = viewPrefs(); s.period = pref.period; s.customDays = pref.customDays;
+  s.period = viewPrefs().period;
   const np = br.r(3) + 1; s.people = [];
   for (let i = 0; i < np; i++) s.people.push({ id: uid() });
   s.incomes = []; s.expenses = []; s.goals = [];
@@ -368,8 +367,8 @@ function updateLink() {
     } catch (e) { $('#qr').innerHTML = `<span class="small">QR unavailable</span>`; }
   }, 150);
 }
-function save() { try { localStorage.setItem('budget11', JSON.stringify(state)); localStorage.setItem('viewPrefs', JSON.stringify({ period: state.period, customDays: state.customDays })); } catch {} }
-function viewPrefs() { try { return JSON.parse(localStorage.getItem('viewPrefs')) || { period: 0, customDays: 90 }; } catch { return { period: 0, customDays: 90 }; } }
+function save() { try { localStorage.setItem('budget11', JSON.stringify(state)); localStorage.setItem('viewPrefs', JSON.stringify({ period: state.period })); } catch {} }
+function viewPrefs() { try { const p = JSON.parse(localStorage.getItem('viewPrefs')); return p && PERIODS[p.period] ? p : { period: 0 }; } catch { return { period: 0 }; } }
 
 // ---------- diff ----------
 function diff(a, b) {
