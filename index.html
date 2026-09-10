@@ -87,7 +87,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <script>
 // ---------- constants ----------
-const VERSION = 10;
+const VERSION = 11;
 const PERIODS = [['Week', 7], ['Fortnight', 14], ['Month', 30.4375], ['Quarter', 91.3125], ['Half year', 182.625], ['Year', 365.25]];
 // entry conversion helpers only; everything is stored per week
 const CONV = [['/wk', 1], ['/fn', 2], ['/mo', 30.4375 / 7], ['/qtr', 91.3125 / 7], ['/yr', 365.25 / 7]];
@@ -146,7 +146,8 @@ function tagSelect(tags, val) {
 // lines: {id, owner, tag, code}   weekly amount = amtDecode(code)
 let state = defaultState();
 function defaultState() {
-  return { period: 0, people: [{ id: uid() }, { id: uid() }], incomes: [], expenses: [], goals: [] }; // goals: {id, owner, tag, code}
+  // split: 0 equal, 1 proportional to income, 2 custom (people[i].pct, whole percents summing to 100)
+  return { period: 0, split: 0, people: [{ id: uid(), pct: 50 }, { id: uid(), pct: 50 }], incomes: [], expenses: [], goals: [] }; // goals: {id, owner, tag, code}
 }
 function uid() { return Math.random().toString(36).slice(2, 7); }
 const pidx = p => state.people.findIndex(q => q.id === p.id);
@@ -159,17 +160,37 @@ const setLineAmt = (it, weekly, isExp) => { it.code = amtEncode(weekly, isExp); 
 function periodDays() { return PERIODS[state.period][1]; }
 const perPeriod = (it, days) => amtDecode(it.code) / 7 * days;
 
+// whole-percent share per person, always summing to 100 (last person absorbs rounding)
+function shares(r) {
+  const ps = state.people, n = ps.length, out = {};
+  let raw;
+  if (state.split === 1) { const tot = ps.reduce((s, p) => s + r[p.id].income, 0); raw = ps.map(p => tot ? r[p.id].income / tot * 100 : 100 / n); }
+  else if (state.split === 2) { const tot = ps.reduce((s, p) => s + (Number(p.pct) || 0), 0); raw = ps.map(p => tot ? (Number(p.pct) || 0) / tot * 100 : 100 / n); }
+  else raw = ps.map(() => 100 / n);
+  let acc = 0;
+  ps.forEach((p, i) => { const v = i === n - 1 ? 100 - acc : Math.round(raw[i]); out[p.id] = v; acc += v; });
+  return out;
+}
+function setPct(id, val) {
+  // set one person's share and rebalance the others proportionally so the total stays 100
+  const ps = state.people, me = ps.find(p => p.id === id); val = Math.max(0, Math.min(100, Math.round(Number(val) || 0)));
+  const others = ps.filter(p => p !== me), rest = 100 - val, otot = others.reduce((s, p) => s + (Number(p.pct) || 0), 0);
+  let acc = 0;
+  others.forEach((p, i) => { const v = i === others.length - 1 ? rest - acc : Math.round(otot ? (Number(p.pct) || 0) / otot * rest : rest / others.length); p.pct = v; acc += v; });
+  me.pct = val;
+}
+
 function calc(days = periodDays()) {
   const r = {};
   for (const o of ['H', ...state.people.map(p => p.id)]) r[o] = { income: 0, expense: 0 };
   for (const i of state.incomes) if (r[i.owner]) r[i.owner].income += perPeriod(i, days);
   for (const e of state.expenses) if (r[e.owner]) r[e.owner].expense += perPeriod(e, days);
 
-  // shared shortfall is split equally; shared surplus stays in the household bucket
-  const n = state.people.length, h = r['H'], hNet = h.income - h.expense;
-  const out = { days, rows: [] };
+  // shared shortfall is split by the split rule; shared surplus stays in the household bucket
+  const share = shares(r), h = r['H'], hNet = h.income - h.expense;
+  const out = { days, rows: [], share };
   for (const p of state.people) {
-    const me = r[p.id], take = hNet < 0 ? hNet / n : 0;
+    const me = r[p.id], take = hNet < 0 ? hNet * share[p.id] / 100 : 0;
     out.rows.push({ name: pname(p), colour: pcol(p), ...me, contribH: take, savings: me.income - me.expense + take });
   }
   out.rows.push({ name: 'Household', ...h, contribH: 0, savings: Math.max(0, hNet), isH: true });
@@ -208,7 +229,15 @@ function goalTable(owner, items, weeklySavings) {
   }
   return html + `<tr><td colspan="4">${items.length < MAX_GOAL ? `<button type="button" data-act="add">+ goal</button>` : `<span class="small">max ${MAX_GOAL}</span>`}</td></tr></table>`;
 }
-const activeTab = {}; // owner id -> 0 income, 1 expenses, 2 goals (view state only)
+function splitTable(share) {
+  const opts = [['Equal', 'Straight split between people'], ['Income', 'In proportion to each person\'s income'], ['Custom', 'Set each person\'s share']];
+  let html = `<div>` + opts.map((o, i) => `<label style="display:block"><input type="radio" name="split" value="${i}" ${state.split === i ? 'checked' : ''}> <b>${o[0]}</b> <span class="small">${o[1]}</span></label>`).join('') + `</div>`;
+  html += `<table><tr><th>Who</th><th class="w-amt">Share</th></tr>`;
+  for (const p of state.people) html += `<tr><td><span style="display:inline-block;width:12px;height:12px;background:${pcol(p)};vertical-align:middle"></span> ${pname(p)}</td>` +
+    `<td>${state.split === 2 ? `<input type="number" data-f="pct" data-pid="${p.id}" min="0" max="100" step="1" value="${p.pct}">` : share[p.id]}${state.split === 2 ? '' : '%'}</td></tr>`;
+  return html + `</table><div class="small">Shared shortfall is covered by people in these shares. Shared surplus stays in the household bucket.</div>`;
+}
+const activeTab = {}; // owner id -> tab index (view state only). Shared: 0 split, 1 income, 2 expenses, 3 goals. People: 0 income, 1 expenses, 2 goals.
 
 function render() {
   const c = calc(), cw = calc(7); // cards are always weekly; the forecast table follows the view period
@@ -222,8 +251,9 @@ function render() {
     html += `<div class="col" data-owner="${col.id}" style="border-color:${isH ? '#333' : pcol(col)}"><h3>` +
       (isH ? esc(col.name) : `<span style="display:inline-block;width:14px;height:14px;background:${pcol(col)};vertical-align:middle"></span> ${esc(col.name)} ` +
         `<button type="button" data-act="delPerson">x</button>`) + `</h3>` +
-      `<div class="tabs">` + ['Income', 'Expenses', 'Goals'].map((t, i) => `<button type="button" data-tab="${i}" class="${(activeTab[col.id] || 0) === i ? 'on' : ''}">${t}</button>`).join('') + `</div><div class="sheet">` +
-      [lineTable('incomes', col.id, state.incomes.filter(i => i.owner === col.id)),
+      `<div class="tabs">` + (isH ? ['Split', 'Income', 'Expenses', 'Goals'] : ['Income', 'Expenses', 'Goals']).map((t, i) => `<button type="button" data-tab="${i}" class="${(activeTab[col.id] || 0) === i ? 'on' : ''}">${t}</button>`).join('') + `</div><div class="sheet">` +
+      [...(isH ? [splitTable(cw.share)] : []),
+       lineTable('incomes', col.id, state.incomes.filter(i => i.owner === col.id)),
        lineTable('expenses', col.id, state.expenses.filter(e => e.owner === col.id)),
        goalTable(col.id, (state.goals || []).filter(g => g.owner === col.id), row.savings || 0)][activeTab[col.id] || 0] +
       `</div><div class="summary">Income ${fmt(row.income)} &minus; expenses ${fmt(row.expense)} = <b class="${cls(row.income - row.expense)}">${fmt(row.income - row.expense)}</b> /week</div>` +
@@ -247,12 +277,14 @@ document.body.addEventListener('input', e => {
   const t = e.target, f = t.dataset.f; if (!f) return;
   const tr = t.closest('tr'), table = t.closest('table'), kind = table.dataset.kind;
   const item = state[kind].find(x => x.id === tr.dataset.id); if (!item) return;
-  if (f === 'amt' || f === 'goal' || f === 'conv') return; // committed on change
+  if (f === 'amt' || f === 'goal' || f === 'conv' || f === 'pct') return; // committed on change
   item[f] = Number(t.value);
   render();
 });
 document.body.addEventListener('change', e => {
   const t = e.target, f = t.dataset.f;
+  if (t.name === 'split') { state.split = Number(t.value); render(); return; }
+  if (f === 'pct') { setPct(t.dataset.pid, t.value); render(); return; }
   if (f === 'goal') {
     const tr = t.closest('tr'), item = state.goals.find(x => x.id === tr.dataset.id); if (!item) return;
     item.code = goalEncode(t.value); render(); return;
@@ -307,10 +339,10 @@ $('#shareBtn').onclick = async () => {
 };
 $('#period').innerHTML = PERIODS.map((p, i) => `<option value="${i}">${p[0]}</option>`).join('');
 $('#period').onchange = e => { state.period = Number(e.target.value); render(); };
-$('#addPerson').onclick = () => { if (state.people.length >= MAX_PEOPLE) return alert(`Max ${MAX_PEOPLE} people`); state.people.push({ id: uid() }); render(); };
+$('#addPerson').onclick = () => { if (state.people.length >= MAX_PEOPLE) return alert(`Max ${MAX_PEOPLE} people`); state.people.push({ id: uid(), pct: 0 }); render(); };
 
 // ---------- bit-packed serialisation ----------
-// header: ver4 npeople-1 3. Colours come from position. View period is not encoded (viewer preference, kept in localStorage).
+// header: ver4 npeople-1 3 split2 [pct7 per person if custom]. Colours come from position. View period is not encoded.
 // per owner (H, then people in order): ninc4, lines; nexp5, lines; ngoal3, goals (tag6 code10)
 // line: tag6 code10 (scale1 + mantissa9) = 16 bits exactly
 class BitWriter {
@@ -324,7 +356,8 @@ class BitReader {
 }
 function encode(s) {
   const bw = new BitWriter();
-  bw.w(VERSION, 4); bw.w(s.people.length - 1, 3);
+  bw.w(VERSION, 4); bw.w(s.people.length - 1, 3); bw.w(s.split, 2);
+  if (s.split === 2) for (const p of s.people) bw.w(Math.max(0, Math.min(100, Math.round(p.pct) || 0)), 7);
   const line = it => { bw.w(it.tag, 6); bw.w(it.code, 10); };
   for (const o of ['H', ...s.people.map(p => p.id)]) {
     const inc = s.incomes.filter(i => i.owner === o).slice(0, MAX_INC), exp = s.expenses.filter(e => e.owner === o).slice(0, MAX_EXP), goal = (s.goals || []).filter(g => g.owner === o).slice(0, MAX_GOAL);
@@ -336,8 +369,10 @@ function decode(bytes) {
   const br = new BitReader(bytes), s = {};
   const v = br.r(4); if (v !== VERSION) throw new Error('unknown version ' + v);
   s.period = viewPrefs().period;
-  const np = br.r(3) + 1; s.people = [];
-  for (let i = 0; i < np; i++) s.people.push({ id: uid() });
+  const np = br.r(3) + 1; s.people = []; s.split = br.r(2);
+  for (let i = 0; i < np; i++) s.people.push({ id: uid(), pct: 0 });
+  if (s.split === 2) for (const p of s.people) p.pct = br.r(7);
+  else s.people.forEach((p, i) => { p.pct = i === np - 1 ? 100 - Math.floor(100 / np) * (np - 1) : Math.floor(100 / np); });
   s.incomes = []; s.expenses = []; s.goals = [];
   const line = owner => ({ id: uid(), owner, tag: br.r(6), code: br.r(10) });
   for (const o of ['H', ...s.people.map(p => p.id)]) {
@@ -368,13 +403,15 @@ function updateLink() {
     } catch (e) { $('#qr').innerHTML = `<span class="small">QR unavailable</span>`; }
   }, 150);
 }
-function save() { try { localStorage.setItem('budget11', JSON.stringify(state)); localStorage.setItem('viewPrefs', JSON.stringify({ period: state.period })); } catch {} }
+function save() { try { localStorage.setItem('budget12', JSON.stringify(state)); localStorage.setItem('viewPrefs', JSON.stringify({ period: state.period })); } catch {} }
 function viewPrefs() { try { const p = JSON.parse(localStorage.getItem('viewPrefs')); return p && PERIODS[p.period] ? p : { period: 0 }; } catch { return { period: 0 }; } }
 
 // ---------- diff ----------
 function diff(a, b) {
   const out = [];
   if (a.people.length !== b.people.length) out.push(`people: ${a.people.length} → ${b.people.length}`);
+  const splitName = s => ['equal', 'income', 'custom ' + s.people.map(p => p.pct + '%').join('/')][s.split || 0];
+  if (splitName(a) !== splitName(b)) out.push(`split: ${splitName(a)} → ${splitName(b)}`);
   const n = Math.max(a.people.length, b.people.length);
   const ownerName = i => i === 0 ? 'Household' : (COLOURS[i - 1] ? COLOURS[i - 1][0] : `Person ${i}`);
   const lines = (s, kind, i) => { const o = i === 0 ? 'H' : (s.people[i - 1] || {}).id; return (s[kind] || []).filter(x => x.owner === o); };
@@ -384,7 +421,7 @@ function diff(a, b) {
     // match identical lines first, then pair leftovers by tag as "changed", rest are added/removed
     const key = x => x.tag + ':' + x.code;
     const pool = new Map(); for (const y of lb) pool.set(key(y), (pool.get(key(y)) || 0) + 1);
-    let rem = [], add = [];
+    const rem = [], add = [];
     for (const x of la) { const k = key(x); if (pool.get(k)) pool.set(k, pool.get(k) - 1); else rem.push(x); }
     // rebuild adds: everything in lb not consumed by a match
     const consumed = new Map(); for (const x of la) { const k = key(x); if (!rem.includes(x)) consumed.set(k, (consumed.get(k) || 0) + 1); }
@@ -407,7 +444,7 @@ function showIncoming(local, incoming, hash) {
 function load() {
   const hash = location.hash.slice(1);
   let local = null;
-  try { const s = localStorage.getItem('budget11'); if (s) local = JSON.parse(s); } catch {}
+  try { const s = localStorage.getItem('budget12'); if (s) local = JSON.parse(s); } catch {}
   if (hash) {
     let incoming;
     try { incoming = decode(b32.dec(hash)); } catch (e) { alert('Could not read budget from link: ' + e.message); incoming = null; }
