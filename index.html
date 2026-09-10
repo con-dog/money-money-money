@@ -9,8 +9,8 @@
   body { font-family: monospace; }
   main { height: 100dvh; overflow-y: auto; scroll-snap-type: y mandatory; }
   .page { height: 100dvh; box-sizing: border-box; scroll-snap-align: start; max-width: 800px; margin: 0 auto; padding: 8px; display: flex; flex-direction: column; }
-  #down, #up { text-align: center; padding: 4px 0; }
-  #down button, #up button { font-size: 1.4em; padding: 2px 30px; }
+  .arrow, #down, #up { text-align: center; padding: 4px 0; }
+  .arrow button, #down button, #up button { font-size: 1.4em; padding: 2px 30px; }
   table { border-collapse: collapse; margin-bottom: 8px; width: 100%; }
   td, th { border: 1px solid #999; padding: 2px 4px; text-align: left; }
   input[type=number] { width: 70px; max-width: 100%; box-sizing: border-box; }
@@ -27,7 +27,8 @@
   .pos { color: #070; }
   .small { font-size: 0.85em; color: #555; }
   h3 { margin: 4px 0; }
-  #share { text-align: center; margin-bottom: 4px; }
+  #share { text-align: center; }
+  #qr svg { max-width: 90vw; max-height: 60vh; height: auto; }
   #share button { font-size: 1.2em; padding: 6px 24px; }
   #qr svg { display: block; margin: 0 auto; }
   #incoming { border: 2px solid #b00; padding: 6px; margin: 8px 0; }
@@ -45,12 +46,6 @@
 <body>
 <main>
 <section class="page" id="page1">
-
-<div id="share">
-  <div id="qr"></div>
-  <button type="button" id="shareBtn">SHARE</button>
-  <div id="shareMsg" class="small">&nbsp;</div>
-</div>
 
 <div id="incoming" hidden></div>
 
@@ -73,6 +68,17 @@
 </div>
 
 <table id="forecast"></table>
+<div id="down2" class="arrow" style="margin-top:auto"><button type="button" id="downBtn2" title="share">&darr;</button></div>
+
+</section>
+<section class="page" id="page3">
+<div id="up2" class="arrow"><button type="button" id="upBtn2" title="forecast">&uarr;</button></div>
+
+<div id="share" style="margin:auto 0">
+  <div id="qr"></div>
+  <button type="button" id="shareBtn">SHARE</button>
+  <div id="shareMsg" class="small">&nbsp;</div>
+</div>
 
 </section>
 </main>
@@ -286,6 +292,8 @@ const go = d => { const t = $('#track'), n = t.children.length; t.scrollTo({ lef
 $('#prev').onclick = () => go(-1);
 $('#downBtn').onclick = () => $('#page2').scrollIntoView({ behavior: 'smooth' });
 $('#upBtn').onclick = () => $('#page1').scrollIntoView({ behavior: 'smooth' });
+$('#downBtn2').onclick = () => $('#page3').scrollIntoView({ behavior: 'smooth' });
+$('#upBtn2').onclick = () => $('#page2').scrollIntoView({ behavior: 'smooth' });
 $('#next').onclick = () => go(1);
 window.addEventListener('resize', () => { const t = $('#track'); t.scrollLeft = curIndex() * t.clientWidth; });
 $('#shareBtn').onclick = async () => {
@@ -356,7 +364,7 @@ function updateLink() {
     const url = location.href, prefix = url.slice(0, url.indexOf('#') + 1);
     try {
       const qr = qrcode(0, 'L'); qr.addData(prefix, 'Byte'); qr.addData(enc, 'Alphanumeric'); qr.make();
-      $('#qr').innerHTML = qr.createSvgTag({ cellSize: innerHeight < 700 ? 3 : 4, margin: 2 });
+      $('#qr').innerHTML = qr.createSvgTag({ cellSize: 6, margin: 2 });
     } catch (e) { $('#qr').innerHTML = `<span class="small">QR unavailable</span>`; }
   }, 150);
 }
