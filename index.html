@@ -238,31 +238,20 @@ function lineTable(kind, owner, items) {
   return html + `<tr><td colspan="4">${items.length < max ? `<button type="button" data-act="add">+ ${isExp ? 'expense' : 'income'}</button>` : `<span class="small">max ${max}</span>`}</td></tr></table>`;
 }
 
-// Week-by-week timeline. Each bucket's money is split across its unfinished goals by their split % every week
-// (evenly if all remaining are 0%). A finished goal's share goes to the rest.
+// Each goal receives exactly its split % of its bucket's weekly pool. 0% means nothing is allocated, ever.
 // Personal goals draw on that person's savings. Shared goals draw on the shared surplus plus everyone's savings.
-// Returns goal id -> week reached (null = never).
+// Returns goal id -> weeks to reach (null = never).
 function goalTimeline(cw) {
-  const MAX_WEEKS = 5200, done = {};
-  const ps = state.people, rate = {}; for (const r of cw.rows) if (!r.isTotal) rate[r.isH ? 'H' : ps.find(p => pname(p) === r.name).id] = r.isH ? r.savings : r.savings;
-  const rem = {}; for (const g of state.goals) { const t = goalDecode(g.code); if (t > 0) rem[g.id] = t; }
-  const order = o => state.goals.filter(g => g.owner === o && rem[g.id] !== undefined && done[g.id] === undefined);
-  const pay = (o, avail, week) => {
-    let open = order(o);
-    while (avail > 1e-9 && open.length) {
-      const wsum = open.reduce((s, g) => s + (Number(g.pct) || 0), 0), budget = avail;
-      for (const g of open) { const share = wsum ? (Number(g.pct) || 0) / wsum : 1 / open.length; const p = Math.min(budget * share, rem[g.id]); rem[g.id] -= p; avail -= p; if (rem[g.id] <= 1e-9) done[g.id] = week; }
-      open = open.filter(g => done[g.id] === undefined); // finished goals free their share for the rest this same week
-    }
-    return avail;
-  };
-  const pool = Math.max(0, rate['H'] || 0) + ps.reduce((s, p) => s + Math.max(0, rate[p.id] || 0), 0);
-  for (let w = 1; w <= MAX_WEEKS && Object.keys(rem).length > Object.keys(done).length; w++) {
-    for (const p of ps) pay(p.id, Math.max(0, rate[p.id] || 0), w);
-    pay('H', pool, w);
+  const ps = state.people, rate = {};
+  for (const r of cw.rows) if (!r.isTotal) rate[r.isH ? 'H' : ps.find(p => pname(p) === r.name).id] = Math.max(0, r.savings);
+  const pool = { H: (rate['H'] || 0) + ps.reduce((s, p) => s + (rate[p.id] || 0), 0) };
+  for (const p of ps) pool[p.id] = rate[p.id] || 0;
+  const out = {};
+  for (const g of state.goals) {
+    const target = goalDecode(g.code), weekly = (pool[g.owner] || 0) * (Number(g.pct) || 0) / 100;
+    out[g.id] = target <= 0 ? undefined : weekly > 0 ? Math.ceil(target / weekly - 1e-9) : null;
   }
-  for (const id in rem) if (done[id] === undefined) done[id] = null;
-  return done;
+  return out;
 }
 
 function goalTable(owner, items, timeline, funding) {
