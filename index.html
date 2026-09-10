@@ -6,7 +6,13 @@
 <title>Household Budget</title>
 <style>
   html, body { height: 100%; margin: 0; }
-  body { font-family: monospace; }
+  body { font-family: monospace; background-color: #fff;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Crect x='6' y='6' width='2' height='2' fill='%23c8c8c8'/%3E%3C/svg%3E"); }
+  /* opaque surfaces so the dot matrix stays in the background only */
+  .col, #forecast, #share, #incoming, .tabs button, #nav button, .arrow button, #down button, #up button, #pos, #bottom { background: #fff; }
+  table { background: #fff; }
+  #pos { display: table; margin: 4px auto 0; padding: 2px 8px; }
+  #bottom { display: inline-block; align-self: flex-start; padding: 2px 8px; margin-top: 8px; }
   main { height: 100dvh; overflow-y: auto; scroll-snap-type: y mandatory; }
   .page { height: 100dvh; box-sizing: border-box; scroll-snap-align: start; max-width: 800px; margin: 0 auto; padding: 8px; display: flex; flex-direction: column; }
   .arrow, #down, #up { text-align: center; padding: 4px 0; }
@@ -49,9 +55,7 @@
   .tabs { display: flex; gap: 4px; margin: 6px 0; }
   .tabs button { flex: 1; padding: 4px; }
   .tabs button.on { background: #333; color: #fff; }
-  #pos { text-align: center; padding-top: 4px; }
   #nav { display: flex; justify-content: space-between; align-items: center; margin: 6px 0; }
-  #bottom { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
 </style>
 </head>
 <body>
