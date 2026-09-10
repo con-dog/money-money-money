@@ -14,7 +14,7 @@
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Crect x='6' y='6' width='2' height='2' fill='%23c8c8c8'/%3E%3C/svg%3E"); }
   @media (prefers-color-scheme: dark) { body { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Crect x='6' y='6' width='2' height='2' fill='%23383838'/%3E%3C/svg%3E"); } }
   /* opaque surfaces so the dot matrix stays in the background only */
-  .col, #forecast, #goalsum, #incoming, .tabs button, #nav button, .arrow button, #down button, #up button, #pos, #bottom { background: var(--surface); }
+  .col, #forecast, #savsum, #incoming, .tabs button, #nav button, .arrow button, #down button, #up button, #pos, #bottom { background: var(--surface); }
   table { background: var(--surface); }
   #share { background: #fff; color: #111; } /* QR stays black on white */
   /* brutalist: no radius anywhere, flat fills, heavy square borders, one typeface */
@@ -48,7 +48,6 @@
   .arrow button, #down button, #up button { font-size: 1.4em; padding: 2px 30px; }
   table { border-collapse: collapse; margin-bottom: 8px; width: 100%; table-layout: fixed; }
   th.w-amt { width: 84px; } th.w-conv { width: 92px; } th.w-del { width: 34px; } th.w-wk { width: 124px; } th.w-pct { width: 64px; }
-  table[data-kind=goals] { min-width: 460px; }
   .sheet { overflow-x: auto; min-width: 0; }
   td select, td input { width: 100%; box-sizing: border-box; }
   .sheet { flex: 1; min-height: 0; overflow-y: auto; }
@@ -69,7 +68,6 @@
     .page { padding: 4px; }
     body { font-size: 12px; }
     th.w-amt { width: 64px; } th.w-conv { width: 70px; } th.w-del { width: 28px; } th.w-pct { width: 52px; } th.w-wk { width: 110px; }
-    table[data-kind=goals] { min-width: 400px; }
     td, th { padding: 1px 2px; }
     .col { padding: 4px; }
   }
@@ -81,7 +79,7 @@
   .small { font-size: 0.85em; color: var(--muted); }
   h3 { margin: 4px 0; }
   #share { text-align: center; width: fit-content; align-self: center; padding: 12px; border: 3px solid var(--strong); }
-  #goalsum { margin-top: 12px; }
+  #savsum { margin-top: 12px; width: auto; min-width: 50%; }
   #qr svg { max-width: 90vw; max-height: 60vh; height: auto; }
   #share button { font-size: 1.2em; padding: 6px 24px; }
   #qr svg { display: block; margin: 0 auto; }
@@ -120,7 +118,7 @@
 </div>
 
 <table id="forecast"></table>
-<table id="goalsum" hidden></table>
+<table id="savsum" hidden></table>
 <div id="down2" class="arrow" style="margin-top:auto"><button type="button" id="downBtn2" title="share">&darr;</button></div>
 
 </section>
@@ -142,7 +140,7 @@ const VERSION = 1;
 const PERIODS = [['Week', 7], ['Fortnight', 14], ['Month', 30.4375], ['Quarter', 91.3125], ['Half year', 182.625], ['Year', 365.25]];
 // entry conversion helpers only; everything is stored per week
 const CONV = [['/wk', 1], ['/fn', 2], ['/mo', 30.4375 / 7], ['/qtr', 91.3125 / 7], ['/yr', 365.25 / 7]];
-const MAX_PEOPLE = 8, MAX_INC = 15, MAX_EXP = 31, MAX_GOAL = 7;
+const MAX_PEOPLE = 8, MAX_INC = 15, MAX_EXP = 31, MAX_SAV = 15;
 // colour is assigned by position: person 1 is always Blue, person 2 Purple, ...
 const COLOURS = [['Blue', '#1e88e5'], ['Purple', '#8e24aa'], ['Green', '#43a047'], ['Orange', '#fb8c00'], ['Red', '#e53935'], ['Teal', '#00897b'], ['Pink', '#d81b60'], ['Yellow', '#fdd835']];
 
@@ -156,15 +154,6 @@ function amtEncode(weekly, roundUp) {
   return 512 | Math.min(511, r(weekly / 10));     // scale 1
 }
 const amtDecode = c => (c & 512) ? (c & 511) * 10 : c;
-// goal target, 10 bits: scale bit (x10 or x100) + 9-bit mantissa. $10 steps to $5110, $100 steps to $51,100. Rounds up.
-const GOAL_MAX = 51100;
-function goalEncode(v, roundUp = true) {
-  v = Math.min(GOAL_MAX, Math.max(0, Number(v) || 0));
-  const r = x => roundUp ? Math.ceil(x - 1e-9) : Math.floor(x + 1e-9);
-  const m = r(v / 10); return m <= 511 ? m : 512 | Math.min(511, r(v / 100));
-}
-const goalDecode = c => (c & 512) ? (c & 511) * 100 : c * 10;
-
 // tag 0 is always "Other". Max 64 per list (6 bits). [group, name]
 const INCOME_TAGS = [['Other', 'Other'], ['Other', 'Other 2'],
   ['Work', 'Salary'], ['Work', 'Wages'], ['Work', 'Bonus'], ['Work', 'Overtime'], ['Work', 'Side hustle'], ['Work', 'Freelance'], ['Work', 'Business'],
@@ -178,14 +167,16 @@ const EXPENSE_TAGS = [['Other', 'Other'], ['Other', 'Other 2'], ['Other', 'Buffe
   ['Health', 'Health insurance'], ['Health', 'Doctor'], ['Health', 'Dentist'], ['Health', 'Pharmacy'], ['Health', 'Gym'], ['Health', 'Sport'],
   ['Lifestyle', 'Streaming'], ['Lifestyle', 'Subscriptions'], ['Lifestyle', 'AI tools'], ['Lifestyle', 'Hobbies'], ['Lifestyle', 'Dance classes'], ['Lifestyle', 'Clothes'], ['Lifestyle', 'Haircut'], ['Lifestyle', 'Personal care'], ['Lifestyle', 'Fun money'],
   ['Family', 'Kids'], ['Family', 'Childcare'], ['Family', 'School'], ['Family', 'Pets'], ['Family', 'Vet'], ['Family', 'Gifts'], ['Family', 'Donations'],
-  ['Travel', 'Holidays'], ['Travel', 'Flights'], ['Travel', 'Travel savings'],
+  ['Travel', 'Holidays'], ['Travel', 'Flights'], ['Travel', 'Travel insurance'],
   ['Home', 'Furniture'], ['Home', 'Appliances'], ['Home', 'Repairs'], ['Home', 'Cleaning'], ['Home', 'Garden'],
   ['Finance', 'Life insurance'], ['Finance', 'Income protection'], ['Finance', 'Credit card'], ['Finance', 'Personal loan'], ['Finance', 'Student loan'], ['Finance', 'Tax'], ['Finance', 'Fees'], ['Finance', 'Investing'], ['Finance', 'Savings transfer']];
-const GOAL_TAGS = [['Other', 'Other'], ['Other', 'Other 2'],
+const SAVINGS_TAGS = [['Other', 'Other'], ['Other', 'Other 2'],
   ['Safety', 'Emergency fund'], ['Safety', 'Debt payoff'],
   ['Big', 'House deposit'], ['Big', 'Car'], ['Big', 'Wedding'], ['Big', 'Renovation'], ['Big', 'Investment'],
   ['Fun', 'Holiday'], ['Fun', 'Tech'], ['Fun', 'Furniture'], ['Fun', 'Hobby gear'],
-  ['Life', 'Education'], ['Life', 'Baby'], ['Life', 'Moving'], ['Life', 'Gift']];
+  ['Life', 'Education'], ['Life', 'Baby'], ['Life', 'Moving'], ['Life', 'Gift'],
+  ['Passive', 'Investing'], ['Passive', 'Retirement'], ['Passive', 'Term deposit']];
+const TAGS = { incomes: INCOME_TAGS, expenses: EXPENSE_TAGS, savings: SAVINGS_TAGS };
 const tagIndex = (tags, name) => tags.findIndex(t => t[1] === name);
 // monochrome text glyphs (U+FE0E forces text presentation where a font would otherwise pick the colour emoji)
 const GROUP_ICON = { Other: '·', Work: '⚙\uFE0E', Passive: '%', Housing: '⌂', Utilities: '⚡\uFE0E', Food: '☕\uFE0E', Transport: '⛽\uFE0E', Health: '✚', Lifestyle: '♫', Family: '☺\uFE0E', Travel: '✈\uFE0E', Home: '⚒\uFE0E', Finance: '⚖\uFE0E', Safety: '☂\uFE0E', Big: '▲', Fun: '★', Life: '✿' };
@@ -206,7 +197,7 @@ function tagSelect(tags, val) {
 let state = defaultState();
 function defaultState() {
   // split: 0 equal, 1 proportional to income, 2 custom (people[i].pct, whole percents summing to 100)
-  return { period: 0, split: 0, people: [{ id: uid(), pct: 50 }, { id: uid(), pct: 50 }], incomes: [], expenses: [], goals: [] }; // goals: {id, owner, tag, code}
+  return { period: 0, split: 0, people: [{ id: uid(), pct: 50 }, { id: uid(), pct: 50 }], incomes: [], expenses: [], savings: [] };
 }
 function uid() { return Math.random().toString(36).slice(2, 7); }
 const pidx = p => state.people.findIndex(q => q.id === p.id);
@@ -230,15 +221,6 @@ function shares(r) {
   ps.forEach((p, i) => { const v = i === n - 1 ? 100 - acc : Math.round(raw[i]); out[p.id] = v; acc += v; });
   return out;
 }
-// goal split within a bucket: whole percents, total at most 100. The remainder is unallocated.
-// A person's unallocated savings flow into the shared goal pool.
-function goalsOf(owner) { return state.goals.filter(g => g.owner === owner); }
-function allocated(owner, except) { return goalsOf(owner).filter(g => g !== except).reduce((s, g) => s + (Number(g.pct) || 0), 0); }
-function unallocated(owner) { return Math.max(0, 100 - allocated(owner)); }
-function setGoalPct(id, val) {
-  const g = state.goals.find(x => x.id === id);
-  g.pct = Math.max(0, Math.min(100 - allocated(g.owner, g), Math.round(Number(val) || 0)));
-}
 function setPct(id, val) {
   // set one person's share and rebalance the others proportionally so the total stays 100
   const ps = state.people, me = ps.find(p => p.id === id); val = Math.max(0, Math.min(100, Math.round(Number(val) || 0)));
@@ -250,22 +232,22 @@ function setPct(id, val) {
 
 function calc(days = periodDays()) {
   const r = {};
-  for (const o of ['H', ...state.people.map(p => p.id)]) r[o] = { income: 0, expense: 0 };
+  for (const o of ['H', ...state.people.map(p => p.id)]) r[o] = { income: 0, expense: 0, saving: 0 };
   for (const i of state.incomes) if (r[i.owner]) r[i.owner].income += perPeriod(i, days);
   for (const e of state.expenses) if (r[e.owner]) r[e.owner].expense += perPeriod(e, days);
+  for (const v of state.savings) if (r[v.owner]) r[v.owner].saving += perPeriod(v, days);
 
   // shared shortfall is split by the split rule; shared surplus stays in the household bucket
-  const share = shares(r), h = r['H'], hNet = h.income - h.expense;
+  // shared net (income − expenses − savings) shortfall is split by the split rule; shared surplus stays in the household bucket
+  const share = shares(r), h = r['H'], hNet = h.income - h.expense - h.saving;
   const out = { days, rows: [], share };
   for (const p of state.people) {
     const me = r[p.id], take = hNet < 0 ? hNet * share[p.id] / 100 : 0;
-    out.rows.push({ name: pname(p), colour: pcol(p), ...me, contribH: take, savings: me.income - me.expense + take });
+    out.rows.push({ name: pname(p), colour: pcol(p), ...me, contribH: take, left: me.income - me.expense - me.saving + take });
   }
-  // shared goals are funded from the shared surplus first, then from each person's savings
-  const pool = Math.max(0, hNet) + out.rows.reduce((s, x) => s + Math.max(0, x.savings), 0);
-  out.rows.push({ name: 'Household', ...h, contribH: 0, savings: Math.max(0, hNet), goalPool: pool, isH: true });
+  out.rows.push({ name: 'Household', ...h, contribH: 0, left: Math.max(0, hNet), isH: true });
   const sum = k => out.rows.reduce((s, x) => s + x[k], 0);
-  out.rows.push({ name: 'TOTAL', income: sum('income'), expense: sum('expense'), savings: sum('savings'), isTotal: true });
+  out.rows.push({ name: 'TOTAL', income: sum('income'), expense: sum('expense'), saving: sum('saving'), left: sum('left'), isTotal: true });
   return out;
 }
 
@@ -277,53 +259,16 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;',
 const sel = (f, opts, val) => `<select data-f="${f}">` + opts.map((o, i) => `<option value="${i}" ${i === val ? 'selected' : ''}>${esc(o)}</option>`).join('') + `</select>`;
 
 function lineTable(kind, owner, items) {
-  const isExp = kind === 'expenses', tags = isExp ? EXPENSE_TAGS : INCOME_TAGS, max = isExp ? MAX_EXP : MAX_INC;
-  let html = `<table data-kind="${kind}" data-owner="${owner}"><tr><th>${isExp ? 'Expense' : 'Income'}</th><th class="w-amt sortable" data-sort="${kind}" title="sort">$/week${SORT_ARROW[sortMode[kind]]}</th><th class="w-conv">entered as</th><th class="w-del"></th></tr>`;
+  const isExp = kind !== 'incomes', tags = TAGS[kind], max = { incomes: MAX_INC, expenses: MAX_EXP, savings: MAX_SAV }[kind];
+  const label = { incomes: 'Income', expenses: 'Expense', savings: 'Saving' }[kind];
+  let html = `<table data-kind="${kind}" data-owner="${owner}"><tr><th>${label}</th><th class="w-amt sortable" data-sort="${kind}" title="sort">$/week${SORT_ARROW[sortMode[kind]]}</th><th class="w-conv">entered as</th><th class="w-del"></th></tr>`;
   for (const it of sorted(kind, items, lineAmt)) {
     html += `<tr data-id="${it.id}"><td><div class="tagcell">${dragHandle(kind)}${groupIcon(tags, it.tag)}${tagSelect(tags, it.tag)}</div></td>
       <td><input type="number" data-f="amt" value="${lineAmt(it)}" min="0" max="${AMT_MAX}" step="${lineAmt(it) > 511 ? 10 : 1}"${noteAttr(it.id, 'amt')}></td>
       <td>${sel('conv', CONV.map(f => f[0]), 0)}</td>
       <td><button type="button" data-act="del">x</button></td></tr>`;
   }
-  return html + `<tr><td colspan="4">${items.length < max ? `<button type="button" data-act="add">+ ${isExp ? 'expense' : 'income'}</button>` : `<span class="small">max ${max}</span>`}</td></tr></table>` + noteLine(items);
-}
-
-// Each goal receives exactly its split % of its bucket's weekly pool. 0% means nothing is allocated, ever.
-// Personal goals draw on that person's savings. Shared goals draw on the shared surplus plus each person's
-// unallocated savings (the part not claimed by their own goals). Returns goal id -> {weekly, remaining, weeks}
-// where weeks is 0 when already reached and null when never.
-function goalTimeline(cw) {
-  const ps = state.people, rate = {};
-  for (const r of cw.rows) if (!r.isTotal) rate[r.isH ? 'H' : ps.find(p => pname(p) === r.name).id] = Math.max(0, r.savings);
-  const contrib = {}; for (const p of ps) contrib[p.id] = (rate[p.id] || 0) * unallocated(p.id) / 100;
-  const pool = { H: (rate['H'] || 0) + ps.reduce((s, p) => s + contrib[p.id], 0) };
-  for (const p of ps) pool[p.id] = rate[p.id] || 0;
-  const out = { _pool: pool, _contrib: contrib, _shared: rate['H'] || 0 };
-  for (const g of state.goals) {
-    const target = goalDecode(g.code), saved = goalDecode(g.saved || 0), remaining = Math.max(0, target - saved);
-    const weekly = (pool[g.owner] || 0) * (Number(g.pct) || 0) / 100;
-    out[g.id] = { weekly, remaining, weeks: target <= 0 ? undefined : remaining <= 0 ? 0 : weekly > 0 ? Math.ceil(remaining / weekly - 1e-9) : null };
-  }
-  return out;
-}
-const reachedText = t => t.weeks === undefined ? '' : t.weeks === 0 ? '<span class="pos">reached</span>' : t.weeks === null ? '<span class="neg">never</span>' : `${t.weeks} wk (${(t.weeks / 52.18).toFixed(1)} yr)`;
-
-function goalTable(owner, items, timeline, funding) {
-  let html = `<table data-kind="goals" data-owner="${owner}"><tr><th>Goal</th><th class="w-amt sortable" data-sort="goals" title="sort">Target $${SORT_ARROW[sortMode.goals]}</th><th class="w-amt">Saved $</th><th class="w-pct">Split %</th><th class="w-wk">Reached in</th><th class="w-del"></th></tr>`;
-  for (const it of sorted('goals', items, g => goalDecode(g.code))) {
-    const target = goalDecode(it.code), saved = goalDecode(it.saved || 0), t = timeline[it.id] || {};
-    html += `<tr data-id="${it.id}"><td><div class="tagcell">${dragHandle('goals')}${groupIcon(GOAL_TAGS, it.tag)}${tagSelect(GOAL_TAGS, it.tag)}</div></td>
-      <td><input type="number" data-f="goal" value="${target}" min="0" max="${GOAL_MAX}" step="${target > 5110 ? 100 : 10}"${noteAttr(it.id, 'goal')}></td>
-      <td><input type="number" data-f="saved" value="${saved}" min="0" max="${GOAL_MAX}" step="${saved > 5110 ? 100 : 10}"${noteAttr(it.id, 'saved')}></td>
-      <td><input type="number" data-f="gpct" value="${it.pct || 0}" min="0" max="${100 - allocated(owner, it)}" step="1"></td>
-      <td>${reachedText(t)}</td>
-      <td><button type="button" data-act="del">x</button></td></tr>`;
-  }
-  html += `<tr><td colspan="6">${items.length < MAX_GOAL ? `<button type="button" data-act="add">+ goal</button>` : `<span class="small">max ${MAX_GOAL}</span>`}</td></tr></table>`;
-  html += noteLine(items);
-  html += `<div class="small">Unallocated: ${unallocated(owner)}%${owner === 'H' ? '' : ' (goes to shared goals)'}</div>`;
-  if (funding) html += `<div class="small">Funded from: ${funding}</div>`;
-  return html;
+  return html + `<tr><td colspan="4">${items.length < max ? `<button type="button" data-act="add">+ ${label.toLowerCase()}</button>` : `<span class="small">max ${max}</span>`}</td></tr></table>` + noteLine(items);
 }
 
 // one-shot note when an entered value was snapped, e.g. "rounded up from 11.25 to 12"
@@ -344,31 +289,29 @@ function splitTable(share) {
 }
 
 // view-only sort per table kind: 0 as entered, 1 highest first, 2 lowest first
-const sortMode = { incomes: 0, expenses: 0, goals: 0 };
+const sortMode = { incomes: 0, expenses: 0, savings: 0 };
 const SORT_ARROW = ['', ' ▼', ' ▲'];
 function sorted(kind, items, value) { const m = sortMode[kind]; if (!m) return items; return [...items].sort((a, b) => m === 1 ? value(b) - value(a) : value(a) - value(b)); }
-const activeTab = {}; // owner id -> tab index (view state only). Shared: 0 split, 1 income, 2 expenses, 3 goals. People: 0 income, 1 expenses, 2 goals.
+const activeTab = {}; // owner id -> tab index (view state only). Shared: 0 split, 1 income, 2 expenses, 3 savings. People: 0 income, 1 expenses, 2 savings.
 
 function render() {
   const c = calc(), cw = calc(7); // cards are always weekly; the forecast table follows the view period
-  const timeline = goalTimeline(cw);
   $('#period').value = state.period;
 
 
   let html = '';
   for (const col of [{ id: 'H', name: 'Shared / Household' }, ...state.people.map(p => ({ ...p, name: pname(p) }))]) {
     const isH = col.id === 'H';
-    const row = cw.rows.find(r => isH ? r.isH : r.name === col.name && !r.isH) || { income: 0, expense: 0, savings: 0 };
+    const row = cw.rows.find(r => isH ? r.isH : r.name === col.name && !r.isH) || { income: 0, expense: 0, saving: 0, left: 0 };
     html += `<div class="col" data-owner="${col.id}" style="border-color:${isH ? 'var(--strong)' : pcol(col)}"><h3>` +
       (isH ? esc(col.name) : `<span style="display:inline-block;width:14px;height:14px;background:${pcol(col)};vertical-align:middle"></span> ${esc(col.name)} ` +
         `<button type="button" data-act="delPerson">x</button>`) + `</h3>` +
-      `<div class="tabs">` + (isH ? ['Split', 'Income', 'Expenses', 'Goals'] : ['Income', 'Expenses', 'Goals']).map((t, i) => `<button type="button" data-tab="${i}" class="${(activeTab[col.id] || 0) === i ? 'on' : ''}">${t}</button>`).join('') + `</div><div class="sheet">` +
+      `<div class="tabs">` + (isH ? ['Split', 'Income', 'Expenses', 'Savings'] : ['Income', 'Expenses', 'Savings']).map((t, i) => `<button type="button" data-tab="${i}" class="${(activeTab[col.id] || 0) === i ? 'on' : ''}">${t}</button>`).join('') + `</div><div class="sheet">` +
       [...(isH ? [splitTable(cw.share)] : []),
        lineTable('incomes', col.id, state.incomes.filter(i => i.owner === col.id)),
        lineTable('expenses', col.id, state.expenses.filter(e => e.owner === col.id)),
-       goalTable(col.id, (state.goals || []).filter(g => g.owner === col.id), timeline,
-         isH ? [`shared ${fmt(timeline._shared)}`, ...state.people.map(p => `${pname(p)} ${fmt(timeline._contrib[p.id])}`)].join(' + ') + ` = ${fmt(timeline._pool.H)} /week` : null)][activeTab[col.id] || 0] +
-      `</div><div class="summary">Income ${fmt(row.income)} &minus; expenses ${fmt(row.expense)} = <b class="${cls(row.income - row.expense)}">${fmt(row.income - row.expense)}</b> /week</div>` +
+       lineTable('savings', col.id, state.savings.filter(v => v.owner === col.id))][activeTab[col.id] || 0] +
+      `</div><div class="summary">Income ${fmt(row.income)} &minus; expenses ${fmt(row.expense)} &minus; savings ${fmt(row.saving)} = <b class="${cls(row.income - row.expense - row.saving)}">${fmt(row.income - row.expense - row.saving)}</b> /week</div>` +
       (!isH && row.contribH ? `<div class="small">Share of household net: <span class="${cls(row.contribH)}">${fmt(row.contribH)}</span> /week</div>` : '') + `</div>`;
   }
   const track = $('#track'), idx = curIndex();
@@ -376,19 +319,19 @@ function render() {
   track.scrollLeft = idx * track.clientWidth;
   updatePos();
 
-  let f = `<tr><th>Bucket</th><th>Income</th><th>Expenses</th><th>Household share</th><th>Savings</th></tr>`;
+  let f = `<tr><th>Bucket</th><th>Income</th><th>Expenses</th><th>Savings</th><th>Household share</th><th>Left over</th></tr>`;
   const per = `per ${PERIODS[state.period][0].toLowerCase()}`;
-  for (const r of c.rows) f += `<tr class="${r.isTotal ? 'total' : ''}${!r.isH && !r.isTotal && r.savings < 0 ? ' red' : ''}"><td${r.colour ? ` style="border-left:6px solid ${r.colour}"` : ''}>${esc(r.name)}</td><td>${fmt(r.income)}</td><td>${fmt(r.expense)}</td>` +
-    `<td>${r.isTotal || r.isH ? '' : fmt(r.contribH)}</td><td class="${cls(r.savings)}">${fmt(r.savings)}</td></tr>`;
-  $('#forecast').innerHTML = f + `<tr><td colspan="5" class="small">${per}</td></tr>`;
-  // goals summary across all buckets, soonest first; reached first, never last
-  const gs = state.goals.map(g => ({ g, t: timeline[g.id] || {}, who: g.owner === 'H' ? { name: 'Shared', colour: null } : { name: pname(state.people.find(p => p.id === g.owner)), colour: pcol(state.people.find(p => p.id === g.owner)) } }))
-    .filter(x => x.t.weeks !== undefined)
-    .sort((a, b) => (a.t.weeks === null ? Infinity : a.t.weeks) - (b.t.weeks === null ? Infinity : b.t.weeks));
-  let gsum = `<tr><th>Who</th><th>Goal</th><th>Target</th><th>Saved</th><th>$/week</th><th>Reached in</th></tr>`;
-  for (const x of gs) gsum += `<tr><td${x.who.colour ? ` style="border-left:6px solid ${x.who.colour}"` : ''}>${esc(x.who.name)}</td><td>${esc(GOAL_TAGS[x.g.tag][1])}</td><td>${fmt(goalDecode(x.g.code))}</td><td>${fmt(goalDecode(x.g.saved || 0))}</td><td>${fmt(x.t.weekly)}</td><td>${reachedText(x.t)}</td></tr>`;
-  $('#goalsum').innerHTML = gs.length ? gsum : '';
-  $('#goalsum').hidden = !gs.length;
+  for (const r of c.rows) f += `<tr class="${r.isTotal ? 'total' : ''}${!r.isH && !r.isTotal && r.left < 0 ? ' red' : ''}"><td${r.colour ? ` style="border-left:6px solid ${r.colour}"` : ''}>${esc(r.name)}</td><td>${fmt(r.income)}</td><td>${fmt(r.expense)}</td><td>${fmt(r.saving)}</td>` +
+    `<td>${r.isTotal || r.isH ? '' : fmt(r.contribH)}</td><td class="${cls(r.left)}">${fmt(r.left)}</td></tr>`;
+  $('#forecast').innerHTML = f + `<tr><td colspan="6" class="small">${per}</td></tr>`;
+  // savings summary: every savings line across all buckets for the view period, largest first
+  const sv = state.savings.map(v => ({ v, amt: perPeriod(v, c.days), who: v.owner === 'H' ? { name: 'Shared', colour: null } : { name: pname(state.people.find(p => p.id === v.owner)), colour: pcol(state.people.find(p => p.id === v.owner)) } }))
+    .sort((a, b) => b.amt - a.amt);
+  let ssum = `<tr><th>Who</th><th>Saving</th><th>${per}</th></tr>`;
+  for (const x of sv) ssum += `<tr><td${x.who.colour ? ` style="border-left:6px solid ${x.who.colour}"` : ''}>${esc(x.who.name)}</td><td>${esc(SAVINGS_TAGS[x.v.tag][1])}</td><td>${fmt(x.amt)}</td></tr>`;
+  if (sv.length) ssum += `<tr class="total"><td colspan="2">TOTAL</td><td>${fmt(sv.reduce((a, x) => a + x.amt, 0))}</td></tr>`;
+  $('#savsum').innerHTML = sv.length ? ssum : '';
+  $('#savsum').hidden = !sv.length;
   updateLink();
 }
 
@@ -397,7 +340,7 @@ document.body.addEventListener('input', e => {
   const t = e.target, f = t.dataset.f; if (!f) return;
   const tr = t.closest('tr'), table = t.closest('table'), kind = table.dataset.kind;
   const item = state[kind].find(x => x.id === tr.dataset.id); if (!item) return;
-  if (f === 'amt' || f === 'goal' || f === 'saved' || f === 'gpct' || f === 'conv' || f === 'pct') return; // committed on change
+  if (f === 'amt' || f === 'conv' || f === 'pct') return; // committed on change
   item[f] = Number(t.value);
   render();
 });
@@ -405,21 +348,13 @@ document.body.addEventListener('change', e => {
   const t = e.target, f = t.dataset.f;
   if (t.name === 'split') { state.split = Number(t.value); render(); return; }
   if (f === 'pct') { setPct(t.dataset.pid, t.value); render(); return; }
-  if (f === 'goal' || f === 'saved' || f === 'gpct') {
-    const tr = t.closest('tr'), item = state.goals.find(x => x.id === tr.dataset.id); if (!item) return;
-    lastNote = null;
-    if (f === 'goal') { item.code = goalEncode(t.value, true); setNote(item.id, 'goal', Number(t.value) || 0, goalDecode(item.code), 'up'); }
-    else if (f === 'saved') { item.saved = goalEncode(t.value, false); setNote(item.id, 'saved', Number(t.value) || 0, goalDecode(item.saved), 'down'); }
-    else setGoalPct(item.id, t.value);
-    render(); return;
-  }
   if (f === 'amt' || f === 'conv') {
     const tr = t.closest('tr'), table = t.closest('table'), kind = table.dataset.kind;
     const item = state[kind].find(x => x.id === tr.dataset.id); if (!item) return;
     // amount typed is interpreted at the "entered as" unit, converted to weekly, then snapped
     const raw = Number(tr.querySelector('[data-f=amt]').value) || 0, conv = CONV[Number(tr.querySelector('[data-f=conv]').value)][1];
-    setLineAmt(item, raw / conv, kind === 'expenses'); delete item._raw;
-    setNote(item.id, 'amt', raw / conv, lineAmt(item), kind === 'expenses' ? 'up' : 'down');
+    setLineAmt(item, raw / conv, kind !== 'incomes'); delete item._raw;
+    setNote(item.id, 'amt', raw / conv, lineAmt(item), kind !== 'incomes' ? 'up' : 'down');
     render();
   }
 });
@@ -431,7 +366,7 @@ document.body.addEventListener('click', e => {
   if (act === 'add') {
     const table = e.target.closest('table');
     const kind = table.dataset.kind, owner = table.dataset.owner;
-    state[kind].push({ id: uid(), owner, tag: 2, code: 0, saved: 0, pct: 0 });
+    state[kind].push({ id: uid(), owner, tag: 2, code: 0 });
   } else if (act === 'del') {
     const table = e.target.closest('table'), tr = e.target.closest('tr'), kind = table.dataset.kind;
     state[kind] = state[kind].filter(x => x.id !== tr.dataset.id);
@@ -441,7 +376,7 @@ document.body.addEventListener('click', e => {
     state.people = state.people.filter(p => p.id !== id);
     state.incomes = state.incomes.filter(i => i.owner !== id);
     state.expenses = state.expenses.filter(x => x.owner !== id);
-    state.goals = state.goals.filter(x => x.owner !== id);
+    state.savings = state.savings.filter(x => x.owner !== id);
   }
   render();
 });
@@ -494,7 +429,7 @@ $('#addPerson').onclick = () => { if (state.people.length >= MAX_PEOPLE) return 
 
 // ---------- bit-packed serialisation ----------
 // header: ver4 npeople-1 3 split2 [pct7 per person if custom]. Colours come from position. View period is not encoded.
-// per owner (H, then people in order): ninc4, lines; nexp5, lines; ngoal3, goals (tag6 target10 saved10 pct7)
+// per owner (H, then people in order): ninc4, lines; nexp5, lines; nsav4, lines
 // line: tag6 code10 (scale1 + mantissa9) = 16 bits exactly
 class BitWriter {
   constructor() { this.bits = []; }
@@ -511,9 +446,8 @@ function encode(s) {
   if (s.split === 2) for (const p of s.people) bw.w(Math.max(0, Math.min(100, Math.round(p.pct) || 0)), 7);
   const line = it => { bw.w(it.tag, 6); bw.w(it.code, 10); };
   for (const o of ['H', ...s.people.map(p => p.id)]) {
-    const inc = s.incomes.filter(i => i.owner === o).slice(0, MAX_INC), exp = s.expenses.filter(e => e.owner === o).slice(0, MAX_EXP), goal = (s.goals || []).filter(g => g.owner === o).slice(0, MAX_GOAL);
-    bw.w(inc.length, 4); inc.forEach(line); bw.w(exp.length, 5); exp.forEach(line);
-    bw.w(goal.length, 3); goal.forEach(g => { line(g); bw.w(g.saved || 0, 10); bw.w(Math.max(0, Math.min(100, Math.round(g.pct) || 0)), 7); });
+    const inc = s.incomes.filter(i => i.owner === o).slice(0, MAX_INC), exp = s.expenses.filter(e => e.owner === o).slice(0, MAX_EXP), sav = s.savings.filter(v => v.owner === o).slice(0, MAX_SAV);
+    bw.w(inc.length, 4); inc.forEach(line); bw.w(exp.length, 5); exp.forEach(line); bw.w(sav.length, 4); sav.forEach(line);
   }
   return bw.bytes();
 }
@@ -525,12 +459,12 @@ function decode(bytes) {
   for (let i = 0; i < np; i++) s.people.push({ id: uid(), pct: 0 });
   if (s.split === 2) for (const p of s.people) p.pct = br.r(7);
   else s.people.forEach((p, i) => { p.pct = i === np - 1 ? 100 - Math.floor(100 / np) * (np - 1) : Math.floor(100 / np); });
-  s.incomes = []; s.expenses = []; s.goals = [];
+  s.incomes = []; s.expenses = []; s.savings = [];
   const line = owner => ({ id: uid(), owner, tag: br.r(6), code: br.r(10) });
   for (const o of ['H', ...s.people.map(p => p.id)]) {
     let n = br.r(4); for (let i = 0; i < n; i++) s.incomes.push(line(o));
     n = br.r(5); for (let i = 0; i < n; i++) s.expenses.push(line(o));
-    n = br.r(3); for (let i = 0; i < n; i++) { const g = line(o); g.saved = br.r(10); g.pct = br.r(7); s.goals.push(g); }
+    n = br.r(4); for (let i = 0; i < n; i++) s.savings.push(line(o));
   }
   return s;
 }
@@ -555,7 +489,7 @@ function updateLink() {
     } catch (e) { $('#qr').innerHTML = `<span class="small">QR unavailable</span>`; }
   }, 150);
 }
-function save() { try { localStorage.setItem('budget14', JSON.stringify(state)); localStorage.setItem('viewPrefs', JSON.stringify({ period: state.period })); } catch {} }
+function save() { try { localStorage.setItem('budget15', JSON.stringify(state)); localStorage.setItem('viewPrefs', JSON.stringify({ period: state.period })); } catch {} }
 function viewPrefs() { try { const p = JSON.parse(localStorage.getItem('viewPrefs')); return p && PERIODS[p.period] ? p : { period: 0 }; } catch { return { period: 0 }; } }
 
 // ---------- diff ----------
@@ -567,11 +501,11 @@ function diff(a, b) {
   const n = Math.max(a.people.length, b.people.length);
   const ownerName = i => i === 0 ? 'Household' : (COLOURS[i - 1] ? COLOURS[i - 1][0] : `Person ${i}`);
   const lines = (s, kind, i) => { const o = i === 0 ? 'H' : (s.people[i - 1] || {}).id; return (s[kind] || []).filter(x => x.owner === o); };
-  for (let i = 0; i <= n; i++) for (const kind of ['incomes', 'expenses', 'goals']) {
-    const tags = { incomes: INCOME_TAGS, expenses: EXPENSE_TAGS, goals: GOAL_TAGS }[kind], la = lines(a, kind, i), lb = lines(b, kind, i);
-    const label = x => kind === 'goals' ? `goal ${tags[x.tag][1]} $${goalDecode(x.code)} (saved $${goalDecode(x.saved || 0)}) ${x.pct || 0}%` : `${tags[x.tag][1]} $${amtDecode(x.code)}/wk`;
+  for (let i = 0; i <= n; i++) for (const kind of ['incomes', 'expenses', 'savings']) {
+    const tags = TAGS[kind], la = lines(a, kind, i), lb = lines(b, kind, i);
+    const label = x => `${kind === 'savings' ? 'saving ' : ''}${tags[x.tag][1]} $${amtDecode(x.code)}/wk`;
     // match identical lines first, then pair leftovers by tag as "changed", rest are added/removed
-    const key = x => x.tag + ':' + x.code + ':' + (x.saved || 0) + ':' + (x.pct || 0);
+    const key = x => x.tag + ':' + x.code;
     const pool = new Map(); for (const y of lb) pool.set(key(y), (pool.get(key(y)) || 0) + 1);
     const rem = [], add = [];
     for (const x of la) { const k = key(x); if (pool.get(k)) pool.set(k, pool.get(k) - 1); else rem.push(x); }
@@ -596,7 +530,7 @@ function showIncoming(local, incoming, hash) {
 function load() {
   const hash = location.hash.slice(1);
   let local = null;
-  try { const s = localStorage.getItem('budget14'); if (s) local = JSON.parse(s); } catch {}
+  try { const s = localStorage.getItem('budget15'); if (s) local = JSON.parse(s); } catch {}
   if (hash) {
     let incoming;
     try { incoming = decode(b32.dec(hash)); } catch (e) { alert('Could not read budget from link: ' + e.message); incoming = null; }
@@ -612,9 +546,9 @@ function load() {
   const exp = (owner, tag, amt) => state.expenses.push({ id: uid(), owner, tag: tagIndex(EXPENSE_TAGS, tag), code: amtEncode(amt, true) });
   inc(m, 'Salary', 800); inc(c, 'Salary', 2076.88);
   exp('H', 'Groceries', 75); exp('H', 'Electricity', 65); exp('H', 'Water', 0); exp('H', 'Internet', 11.25); exp('H', 'Buffer', 20);
-  exp(m, 'Rent', 180); exp(m, 'Gym', 19); exp(m, 'Dance classes', 60); exp(m, 'Streaming', 5); exp(m, 'Pharmacy', 20); exp(m, 'Travel savings', 60); exp(m, 'Public transport', 60); exp(m, 'Fun money', 75);
-  state.goals.push({ id: uid(), owner: m, tag: tagIndex(GOAL_TAGS, 'Holiday'), code: goalEncode(4000), saved: goalEncode(500, false), pct: 60 });
-  state.goals.push({ id: uid(), owner: c, tag: tagIndex(GOAL_TAGS, 'Holiday'), code: goalEncode(6000), saved: 0, pct: 50 });
+  exp(m, 'Rent', 180); exp(m, 'Gym', 19); exp(m, 'Dance classes', 60); exp(m, 'Streaming', 5); exp(m, 'Pharmacy', 20); exp(m, 'Public transport', 60); exp(m, 'Fun money', 75);
+  const sav = (owner, tag, amt) => state.savings.push({ id: uid(), owner, tag: tagIndex(SAVINGS_TAGS, tag), code: amtEncode(amt, true) });
+  sav(m, 'Holiday', 60); sav(c, 'Holiday', 200); sav(c, 'Emergency fund', 500); sav('H', 'House deposit', 0);
   exp(c, 'Rent', 300); exp(c, 'Gym', 20); exp(c, 'Fuel', 100); exp(c, 'Streaming', 5); exp(c, 'Pharmacy', 5); exp(c, 'Health insurance', 45); exp(c, 'AI tools', 25); exp(c, 'Fun money', 75);
 }
 // hashchange fires when a link is pasted into this tab; our own replaceState does not trigger it
