@@ -8,13 +8,21 @@
   html, body { height: 100%; margin: 0; }
   body { font-family: monospace; }
   main { height: 100dvh; overflow-y: auto; scroll-snap-type: y mandatory; }
-  .page { height: 100dvh; box-sizing: border-box; scroll-snap-align: start; max-width: 520px; margin: 0 auto; padding: 12px; display: flex; flex-direction: column; }
+  .page { height: 100dvh; box-sizing: border-box; scroll-snap-align: start; max-width: 800px; margin: 0 auto; padding: 8px; display: flex; flex-direction: column; }
   #down, #up { text-align: center; padding: 4px 0; }
   #down button, #up button { font-size: 1.4em; padding: 2px 30px; }
   table { border-collapse: collapse; margin-bottom: 8px; width: 100%; }
   td, th { border: 1px solid #999; padding: 2px 4px; text-align: left; }
-  input[type=number] { width: 70px; }
-  select { max-width: 150px; }
+  input[type=number] { width: 70px; max-width: 100%; box-sizing: border-box; }
+  select { max-width: 100%; }
+  td select[data-f=tag] { width: 100%; min-width: 90px; }
+  @media (max-width: 360px) {
+    .page { padding: 4px; }
+    body { font-size: 12px; }
+    input[type=number] { width: 56px; }
+    td, th { padding: 1px 2px; }
+    .col { padding: 4px; }
+  }
   .neg { color: #b00; }
   .pos { color: #070; }
   .small { font-size: 0.85em; color: #555; }
@@ -348,7 +356,7 @@ function updateLink() {
     const url = location.href, prefix = url.slice(0, url.indexOf('#') + 1);
     try {
       const qr = qrcode(0, 'L'); qr.addData(prefix, 'Byte'); qr.addData(enc, 'Alphanumeric'); qr.make();
-      $('#qr').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 2 });
+      $('#qr').innerHTML = qr.createSvgTag({ cellSize: innerHeight < 700 ? 3 : 4, margin: 2 });
     } catch (e) { $('#qr').innerHTML = `<span class="small">QR unavailable</span>`; }
   }, 150);
 }
