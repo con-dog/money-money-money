@@ -431,7 +431,7 @@ document.body.addEventListener('click', e => {
   if (act === 'add') {
     const table = e.target.closest('table');
     const kind = table.dataset.kind, owner = table.dataset.owner;
-    state[kind].push({ id: uid(), owner, tag: 2, code: 0, saved: 0, pct: kind === 'goals' ? unallocated(owner) : 0 });
+    state[kind].push({ id: uid(), owner, tag: 2, code: 0, saved: 0, pct: 0 });
   } else if (act === 'del') {
     const table = e.target.closest('table'), tr = e.target.closest('tr'), kind = table.dataset.kind;
     state[kind] = state[kind].filter(x => x.id !== tr.dataset.id);
