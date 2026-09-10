@@ -5,8 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Household Budget</title>
 <style>
-  body { font-family: monospace; margin: 0; padding: 12px; }
-  main { max-width: 520px; margin: 0 auto; }
+  html, body { height: 100%; margin: 0; }
+  body { font-family: monospace; }
+  main { height: 100dvh; overflow-y: auto; scroll-snap-type: y mandatory; }
+  .page { height: 100dvh; box-sizing: border-box; scroll-snap-align: start; max-width: 520px; margin: 0 auto; padding: 12px; display: flex; flex-direction: column; }
+  #down { text-align: center; padding: 4px 0; }
+  #down button { font-size: 1.4em; padding: 2px 30px; }
   table { border-collapse: collapse; margin-bottom: 8px; width: 100%; }
   td, th { border: 1px solid #999; padding: 2px 4px; text-align: left; }
   input[type=number] { width: 70px; }
@@ -15,13 +19,13 @@
   .pos { color: #070; }
   .small { font-size: 0.85em; color: #555; }
   h3 { margin: 4px 0; }
-  #share { text-align: center; margin-bottom: 12px; }
+  #share { text-align: center; margin-bottom: 4px; }
   #share button { font-size: 1.2em; padding: 6px 24px; }
   #qr svg { display: block; margin: 0 auto; }
   #incoming { border: 2px solid #b00; padding: 6px; margin: 8px 0; }
-  #track { display: flex; align-items: flex-start; overflow-x: auto; scroll-snap-type: x mandatory; gap: 8px; scrollbar-width: none; }
+  #track { flex: 1; min-height: 0; display: flex; align-items: stretch; overflow-x: auto; scroll-snap-type: x mandatory; gap: 8px; scrollbar-width: none; }
   #track::-webkit-scrollbar { display: none; }
-  .col { flex: 0 0 100%; scroll-snap-align: start; box-sizing: border-box; border: 3px solid #333; padding: 6px; }
+  .col { flex: 0 0 100%; min-height: 0; overflow-y: auto; scroll-snap-align: start; box-sizing: border-box; border: 3px solid #333; padding: 6px; }
   .tabs { display: flex; gap: 4px; margin: 6px 0; }
   .tabs button { flex: 1; padding: 4px; }
   .tabs button.on { background: #333; color: #fff; }
@@ -31,6 +35,7 @@
 </head>
 <body>
 <main>
+<section class="page">
 
 <div id="share">
   <div id="qr"></div>
@@ -46,6 +51,10 @@
   <button type="button" id="next">&rarr;</button>
 </div>
 <div id="track"></div>
+<div id="down"><button type="button" id="downBtn" title="forecast">&darr;</button></div>
+
+</section>
+<section class="page" id="page2">
 
 <div id="bottom">
   <span>View: <select id="period"></select> <input type="number" id="customDays" value="90" min="1" max="4095" style="width:60px" disabled></span>
@@ -54,6 +63,7 @@
 
 <table id="forecast"></table>
 
+</section>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <script>
@@ -261,8 +271,9 @@ document.body.addEventListener('click', e => {
 const curIndex = () => { const t = $('#track'); return t.clientWidth ? Math.round(t.scrollLeft / t.clientWidth) : 0; };
 function updatePos() { const t = $('#track'), n = t.children.length; $('#pos').textContent = n ? `${curIndex() + 1} / ${n}` : ''; }
 $('#track').addEventListener('scroll', updatePos);
-const go = d => { const t = $('#track'); t.scrollTo({ left: Math.max(0, Math.min(t.children.length - 1, curIndex() + d)) * t.clientWidth, behavior: 'smooth' }); };
+const go = d => { const t = $('#track'), n = t.children.length; t.scrollTo({ left: ((curIndex() + d + n) % n) * t.clientWidth, behavior: 'smooth' }); };
 $('#prev').onclick = () => go(-1);
+$('#downBtn').onclick = () => $('#page2').scrollIntoView({ behavior: 'smooth' });
 $('#next').onclick = () => go(1);
 window.addEventListener('resize', () => { const t = $('#track'); t.scrollLeft = curIndex() * t.clientWidth; });
 $('#shareBtn').onclick = async () => {
