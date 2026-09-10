@@ -31,10 +31,13 @@
 </div>
 <div class="small">Everything is stored per week. Amounts are exact to $1 up to $511/wk and to $10 up to $5110/wk (income rounds down, expenses up). Each line is exactly 2 bytes.</div>
 
+<div id="incoming-top"></div>
 <div id="columns"></div>
 
 <h3>Savings forecast for this period</h3>
 <table id="forecast"></table>
+
+<div id="incoming" hidden style="border:2px solid #b00;padding:6px;margin:8px 0"></div>
 
 <h3>Share</h3>
 <input type="text" id="link" readonly>
@@ -45,7 +48,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <script>
 // ---------- constants ----------
-const VERSION = 8;
+const VERSION = 9;
 const PERIODS = [['Week', 7], ['Fortnight', 14], ['Month', 30.4375], ['Quarter', 91.3125], ['Year', 365.25], ['Custom days', 0]];
 // entry conversion helpers only; everything is stored per week
 const CONV = [['/wk', 1], ['/fn', 2], ['/mo', 30.4375 / 7], ['/qtr', 91.3125 / 7], ['/yr', 365.25 / 7]];
@@ -257,9 +260,11 @@ function decode(bytes) {
   }
   return s;
 }
-const b64u = {
-  enc: bytes => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
-  dec: s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)),
+// base32 (uppercase, no padding) so the QR can use alphanumeric mode for the payload segment
+const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+const b32 = {
+  enc: bytes => { let bits = '', out = ''; for (const b of bytes) bits += b.toString(2).padStart(8, '0'); for (let i = 0; i < bits.length; i += 5) out += B32[parseInt(bits.slice(i, i + 5).padEnd(5, '0'), 2)]; return out; },
+  dec: str => { let bits = ''; for (const c of str.toUpperCase()) { const v = B32.indexOf(c); if (v < 0) throw new Error('bad char ' + c); bits += v.toString(2).padStart(5, '0'); } const out = []; for (let i = 0; i + 8 <= bits.length; i += 8) out.push(parseInt(bits.slice(i, i + 8), 2)); return Uint8Array.from(out); },
 };
 
 let linkTimer;
@@ -267,25 +272,67 @@ function updateLink() {
   save();
   clearTimeout(linkTimer);
   linkTimer = setTimeout(() => {
-    const bytes = encode(state), enc = b64u.enc(bytes);
+    const bytes = encode(state), enc = b32.enc(bytes);
     history.replaceState(null, '', '#' + enc);
-    const url = location.href;
+    const url = location.href, prefix = url.slice(0, url.indexOf('#') + 1);
     $('#link').value = url;
     const nl = state.incomes.length + state.expenses.length;
     $('#linkInfo').textContent = `${bytes.length} bytes → ${enc.length} chars (${nl} lines × 2 bytes + ${(4 + 3 + (state.people.length + 1) * 9)} header bits); full URL ${url.length} chars`;
     try {
-      const qr = qrcode(0, 'L'); qr.addData(url, 'Byte'); qr.make();
+      const qr = qrcode(0, 'L'); qr.addData(prefix, 'Byte'); qr.addData(enc, 'Alphanumeric'); qr.make();
       $('#qr').innerHTML = qr.createSvgTag({ cellSize: 3, margin: 4 }) + `<div class="small">QR version ${(qr.getModuleCount() - 17) / 4} (${qr.getModuleCount()}×${qr.getModuleCount()})</div>`;
     } catch (e) { $('#qr').innerHTML = `<span class="small">QR unavailable (${esc(e.message)})</span>`; }
   }, 150);
 }
-function save() { try { localStorage.setItem('budget9', JSON.stringify(state)); localStorage.setItem('viewPrefs', JSON.stringify({ period: state.period, customDays: state.customDays })); } catch {} }
+function save() { try { localStorage.setItem('budget10', JSON.stringify(state)); localStorage.setItem('viewPrefs', JSON.stringify({ period: state.period, customDays: state.customDays })); } catch {} }
 function viewPrefs() { try { return JSON.parse(localStorage.getItem('viewPrefs')) || { period: 0, customDays: 90 }; } catch { return { period: 0, customDays: 90 }; } }
+
+// ---------- diff ----------
+function diff(a, b) {
+  const out = [];
+  if (a.people.length !== b.people.length) out.push(`people: ${a.people.length} → ${b.people.length}`);
+  const n = Math.max(a.people.length, b.people.length);
+  const ownerName = i => i === 0 ? 'Household' : (COLOURS[i - 1] ? COLOURS[i - 1][0] : `Person ${i}`);
+  const lines = (s, kind, i) => { const o = i === 0 ? 'H' : (s.people[i - 1] || {}).id; return s[kind].filter(x => x.owner === o); };
+  for (let i = 0; i <= n; i++) for (const kind of ['incomes', 'expenses']) {
+    const tags = kind === 'incomes' ? INCOME_TAGS : EXPENSE_TAGS, la = lines(a, kind, i), lb = lines(b, kind, i);
+    const label = x => `${tags[x.tag][1]} $${amtDecode(x.code)}/wk`;
+    // match identical lines first, then pair leftovers by tag as "changed", rest are added/removed
+    const key = x => x.tag + ':' + x.code;
+    const pool = new Map(); for (const y of lb) pool.set(key(y), (pool.get(key(y)) || 0) + 1);
+    let rem = [], add = [];
+    for (const x of la) { const k = key(x); if (pool.get(k)) pool.set(k, pool.get(k) - 1); else rem.push(x); }
+    // rebuild adds: everything in lb not consumed by a match
+    const consumed = new Map(); for (const x of la) { const k = key(x); if (!rem.includes(x)) consumed.set(k, (consumed.get(k) || 0) + 1); }
+    for (const y of lb) { const k = key(y); if (consumed.get(k)) consumed.set(k, consumed.get(k) - 1); else add.push(y); }
+    for (const x of rem) { const j = add.findIndex(y => y.tag === x.tag); if (j >= 0) { out.push(`${ownerName(i)}: ${label(x)} → ${label(add[j])}`); add.splice(j, 1); } else out.push(`${ownerName(i)}: − ${label(x)}`); }
+    for (const y of add) out.push(`${ownerName(i)}: + ${label(y)}`);
+  }
+  return out;
+}
+function showIncoming(local, incoming, hash) {
+  const d = diff(local, incoming), box = $('#incoming');
+  box.innerHTML = `<b>Incoming link differs from your saved budget</b> (${d.length} change${d.length === 1 ? '' : 's'}):<br>` +
+    d.map(esc).join('<br>') + `<br><button type="button" id="takeTheirs">Take theirs</button> <button type="button" id="keepMine">Keep mine</button>`;
+  box.hidden = false; $('#incoming-top').appendChild(box);
+  $('#takeTheirs').onclick = () => { state = incoming; box.innerHTML = `<b>Loaded incoming link.</b> Changes from your previous version:<br>` + d.map(esc).join('<br>') + `<br><button type="button" id="dismiss">Dismiss</button>`; $('#dismiss').onclick = () => { box.hidden = true; }; render(); };
+  $('#keepMine').onclick = () => { box.hidden = true; state = local; render(); };
+  state = local; render();
+}
 
 function load() {
   const hash = location.hash.slice(1);
-  if (hash) { try { state = decode(b64u.dec(hash)); return; } catch (e) { alert('Could not read budget from link: ' + e.message); } }
-  try { const s = localStorage.getItem('budget9'); if (s) { state = JSON.parse(s); return; } } catch {}
+  let local = null;
+  try { const s = localStorage.getItem('budget10'); if (s) local = JSON.parse(s); } catch {}
+  if (hash) {
+    let incoming;
+    try { incoming = decode(b32.dec(hash)); } catch (e) { alert('Could not read budget from link: ' + e.message); incoming = null; }
+    if (incoming) {
+      if (local && b32.enc(encode(local)) !== hash) { showIncoming(local, incoming, hash); return; }
+      state = incoming; return;
+    }
+  }
+  if (local) { state = local; return; }
   state = defaultState();
   const [m, c] = state.people.map(p => p.id);
   const inc = (owner, tag, amt) => state.incomes.push({ id: uid(), owner, tag: tagIndex(INCOME_TAGS, tag), code: amtEncode(amt, false) });
@@ -295,8 +342,9 @@ function load() {
   exp(m, 'Rent', 180); exp(m, 'Gym', 19); exp(m, 'Dance classes', 60); exp(m, 'Streaming', 5); exp(m, 'Pharmacy', 20); exp(m, 'Travel savings', 60); exp(m, 'Public transport', 60); exp(m, 'Fun money', 75);
   exp(c, 'Rent', 300); exp(c, 'Gym', 20); exp(c, 'Fuel', 100); exp(c, 'Streaming', 5); exp(c, 'Pharmacy', 5); exp(c, 'Health insurance', 45); exp(c, 'AI tools', 25); exp(c, 'Fun money', 75);
 }
-window.addEventListener('hashchange', () => { load(); render(); });
-load(); render();
+// hashchange fires when a link is pasted into this tab; our own replaceState does not trigger it
+window.addEventListener('hashchange', () => { load(); if ($('#incoming').hidden) render(); });
+load(); if ($('#incoming').hidden) render();
 </script>
 </body>
 </html>
