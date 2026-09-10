@@ -16,6 +16,8 @@
   td select, td input { width: 100%; box-sizing: border-box; }
   .sheet { flex: 1; min-height: 0; overflow-y: auto; }
   .summary { border-top: 1px solid #999; padding-top: 4px; }
+  .splitopts { display: grid; grid-template-columns: auto auto 1fr; column-gap: 8px; row-gap: 4px; align-items: center; margin: 4px 0 8px; }
+  .splitopts label { margin: 0; }
   td, th { border: 1px solid #999; padding: 2px 4px; text-align: left; }
   select { max-width: 100%; }
   @media (max-width: 360px) {
@@ -231,11 +233,11 @@ function goalTable(owner, items, weeklySavings) {
 }
 function splitTable(share) {
   const opts = [['Equal', 'Straight split between people'], ['Income', 'In proportion to each person\'s income'], ['Custom', 'Set each person\'s share']];
-  let html = `<div>` + opts.map((o, i) => `<label style="display:block"><input type="radio" name="split" value="${i}" ${state.split === i ? 'checked' : ''}> <b>${o[0]}</b> <span class="small">${o[1]}</span></label>`).join('') + `</div>`;
-  html += `<table><tr><th>Who</th><th class="w-amt">Share</th></tr>`;
+  let html = `<div class="splitopts">` + opts.map((o, i) => `<input type="radio" id="split${i}" name="split" value="${i}" ${state.split === i ? 'checked' : ''}><label for="split${i}"><b>${o[0]}</b></label><span class="small">${o[1]}</span>`).join('') + `</div>`;
+  html += `<table><tr><th>Who</th><th class="w-amt">Share %</th></tr>`;
   for (const p of state.people) html += `<tr><td><span style="display:inline-block;width:12px;height:12px;background:${pcol(p)};vertical-align:middle"></span> ${pname(p)}</td>` +
-    `<td>${state.split === 2 ? `<input type="number" data-f="pct" data-pid="${p.id}" min="0" max="100" step="1" value="${p.pct}">` : share[p.id]}${state.split === 2 ? '' : '%'}</td></tr>`;
-  return html + `</table><div class="small">Shared shortfall is covered by people in these shares. Shared surplus stays in the household bucket.</div>`;
+    `<td><input type="number" data-f="pct" data-pid="${p.id}" min="0" max="100" step="1" value="${state.split === 2 ? p.pct : share[p.id]}" ${state.split === 2 ? '' : 'disabled'}></td></tr>`;
+  return html + `</table>`;
 }
 const activeTab = {}; // owner id -> tab index (view state only). Shared: 0 split, 1 income, 2 expenses, 3 goals. People: 0 income, 1 expenses, 2 goals.
 
