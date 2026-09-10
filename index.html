@@ -11,15 +11,17 @@
   .page { height: 100dvh; box-sizing: border-box; scroll-snap-align: start; max-width: 800px; margin: 0 auto; padding: 8px; display: flex; flex-direction: column; }
   .arrow, #down, #up { text-align: center; padding: 4px 0; }
   .arrow button, #down button, #up button { font-size: 1.4em; padding: 2px 30px; }
-  table { border-collapse: collapse; margin-bottom: 8px; width: 100%; }
+  table { border-collapse: collapse; margin-bottom: 8px; width: 100%; table-layout: fixed; }
+  th.w-amt { width: 84px; } th.w-conv { width: 92px; } th.w-del { width: 34px; } th.w-wk { width: 34%; }
+  td select, td input { width: 100%; box-sizing: border-box; }
+  .sheet { flex: 1; min-height: 0; overflow-y: auto; }
+  .summary { border-top: 1px solid #999; padding-top: 4px; }
   td, th { border: 1px solid #999; padding: 2px 4px; text-align: left; }
-  input[type=number] { width: 70px; max-width: 100%; box-sizing: border-box; }
   select { max-width: 100%; }
-  td select[data-f=tag] { width: 100%; min-width: 90px; }
   @media (max-width: 360px) {
     .page { padding: 4px; }
     body { font-size: 12px; }
-    input[type=number] { width: 56px; }
+    th.w-amt { width: 64px; } th.w-conv { width: 70px; } th.w-del { width: 28px; }
     td, th { padding: 1px 2px; }
     .col { padding: 4px; }
   }
@@ -34,7 +36,7 @@
   #incoming { border: 2px solid #b00; padding: 6px; margin: 8px 0; }
   #track { flex: 1; min-height: 0; display: flex; align-items: stretch; overflow-x: auto; scroll-snap-type: x mandatory; gap: 8px; scrollbar-width: none; }
   #track::-webkit-scrollbar { display: none; }
-  .col { flex: 0 0 100%; min-height: 0; overflow-y: auto; scroll-snap-align: start; box-sizing: border-box; border: 3px solid #333; padding: 6px; }
+  .col { flex: 0 0 100%; min-height: 0; display: flex; flex-direction: column; scroll-snap-align: start; box-sizing: border-box; border: 3px solid #333; padding: 6px; }
   .tabs { display: flex; gap: 4px; margin: 6px 0; }
   .tabs button { flex: 1; padding: 4px; }
   .tabs button.on { background: #333; color: #fff; }
@@ -185,7 +187,7 @@ const sel = (f, opts, val) => `<select data-f="${f}">` + opts.map((o, i) => `<op
 
 function lineTable(kind, owner, items) {
   const isExp = kind === 'expenses', tags = isExp ? EXPENSE_TAGS : INCOME_TAGS, max = isExp ? MAX_EXP : MAX_INC;
-  let html = `<table data-kind="${kind}" data-owner="${owner}"><tr><th>${isExp ? 'Expense' : 'Income'}</th><th>$/week</th><th>entered as</th><th></th></tr>`;
+  let html = `<table data-kind="${kind}" data-owner="${owner}"><tr><th>${isExp ? 'Expense' : 'Income'}</th><th class="w-amt">$/week</th><th class="w-conv">entered as</th><th class="w-del"></th></tr>`;
   for (const it of items) {
     html += `<tr data-id="${it.id}"><td>${tagSelect(tags, it.tag)}</td>
       <td><input type="number" data-f="amt" value="${lineAmt(it)}" min="0" max="${AMT_MAX}" step="${lineAmt(it) > 511 ? 10 : 1}"></td>
@@ -196,7 +198,7 @@ function lineTable(kind, owner, items) {
 }
 
 function goalTable(owner, items, weeklySavings) {
-  let html = `<table data-kind="goals" data-owner="${owner}"><tr><th>Goal</th><th>Target $</th><th>Weeks at current savings</th><th></th></tr>`;
+  let html = `<table data-kind="goals" data-owner="${owner}"><tr><th>Goal</th><th class="w-amt">Target $</th><th class="w-wk">Time to reach</th><th class="w-del"></th></tr>`;
   for (const it of items) {
     const target = goalDecode(it.code), wk = weeklySavings > 0 ? Math.ceil(target / weeklySavings) : null;
     html += `<tr data-id="${it.id}"><td>${tagSelect(GOAL_TAGS, it.tag)}</td>
@@ -220,11 +222,11 @@ function render() {
     html += `<div class="col" data-owner="${col.id}" style="border-color:${isH ? '#333' : pcol(col)}"><h3>` +
       (isH ? esc(col.name) : `<span style="display:inline-block;width:14px;height:14px;background:${pcol(col)};vertical-align:middle"></span> ${esc(col.name)} ` +
         `<button type="button" data-act="delPerson">x</button>`) + `</h3>` +
-      `<div class="tabs">` + ['Income', 'Expenses', 'Goals'].map((t, i) => `<button type="button" data-tab="${i}" class="${(activeTab[col.id] || 0) === i ? 'on' : ''}">${t}</button>`).join('') + `</div>` +
+      `<div class="tabs">` + ['Income', 'Expenses', 'Goals'].map((t, i) => `<button type="button" data-tab="${i}" class="${(activeTab[col.id] || 0) === i ? 'on' : ''}">${t}</button>`).join('') + `</div><div class="sheet">` +
       [lineTable('incomes', col.id, state.incomes.filter(i => i.owner === col.id)),
        lineTable('expenses', col.id, state.expenses.filter(e => e.owner === col.id)),
        goalTable(col.id, (state.goals || []).filter(g => g.owner === col.id), row.savings || 0)][activeTab[col.id] || 0] +
-      `<div>Income ${fmt(row.income)} &minus; expenses ${fmt(row.expense)} = <b class="${cls(row.income - row.expense)}">${fmt(row.income - row.expense)}</b> /week</div>` +
+      `</div><div class="summary">Income ${fmt(row.income)} &minus; expenses ${fmt(row.expense)} = <b class="${cls(row.income - row.expense)}">${fmt(row.income - row.expense)}</b> /week</div>` +
       (!isH && row.contribH ? `<div class="small">Share of household net: <span class="${cls(row.contribH)}">${fmt(row.contribH)}</span> /week</div>` : '') + `</div>`;
   }
   const track = $('#track'), idx = curIndex();
