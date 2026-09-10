@@ -39,12 +39,12 @@
   </select>
   <br>
   Expense buffer <input type="number" id="buffer" min="0" max="127" style="width:50px">%
-  <span class="small">(worst case = expected − buffer × expenses)</span>
+  <span class="small">(optional; worst case = expected − buffer × expenses)</span>
   &nbsp; Round savings to <select id="saveUnit"><option value="0">1</option><option value="1">10</option><option value="2">100</option></select>
   &nbsp;&nbsp; <button type="button" id="addPerson">+ Person</button>
   <button type="button" id="reset">Reset</button>
 </div>
-<div class="small">Amounts snap to a 3.7% grid (income down, expenses up) so each line fits in 2 bytes. Grid value shown in the /period column.</div>
+<div class="small">Everything is stored per week. Amounts are exact to $1 up to $511/wk and to $10 up to $5110/wk (income rounds down, expenses up). Each line is exactly 2 bytes.</div>
 
 <div id="columns"></div>
 
@@ -60,21 +60,23 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <script>
 // ---------- constants ----------
-const VERSION = 3;
+const VERSION = 4;
 const PERIODS = [['Week', 7], ['Fortnight', 14], ['Month', 30.4375], ['Quarter', 91.3125], ['Year', 365.25], ['Custom days', 0]];
-const FREQS = [['/day', 1], ['/week', 7], ['/fortnight', 14], ['/month', 30.4375]]; // 2 bits
+// entry conversion helpers only; everything is stored per week
+const CONV = [['/wk', 1], ['/fn', 2], ['/mo', 30.4375 / 7], ['/qtr', 91.3125 / 7], ['/yr', 365.25 / 7]];
 const UNITS = [1, 10, 100];
 const MAX_PEOPLE = 7, MAX_INC = 15, MAX_EXP = 31;
 
-// log-scale amount: code 0 = 0, codes 1..255 span AMT_MIN..AMT_MAX $/day geometrically
-const AMT_MIN = 0.1, AMT_MAX = 1000, AMT_R = Math.pow(AMT_MAX / AMT_MIN, 1 / 254);
-function amtEncode(perDay, roundUp) {
-  if (!(perDay > 0)) return 0;
-  const x = Math.log(perDay / AMT_MIN) / Math.log(AMT_R) + 1;
-  const c = roundUp ? Math.ceil(x - 1e-9) : Math.floor(x + 1e-9);
-  return Math.min(255, Math.max(1, c));
+// amount per week, 10 bits: 1 scale bit (x1 or x10) + 9-bit mantissa. Exact to $1 up to $511, to $10 up to $5110.
+const AMT_MAX = 5110;
+function amtEncode(weekly, roundUp) {
+  weekly = Math.min(AMT_MAX, Math.max(0, Number(weekly) || 0));
+  const r = v => roundUp ? Math.ceil(v - 1e-9) : Math.floor(v + 1e-9);
+  const m1 = r(weekly);
+  if (m1 <= 511) return m1;                       // scale 0
+  return 512 | Math.min(511, r(weekly / 10));     // scale 1
 }
-const amtDecode = c => c === 0 ? 0 : AMT_MIN * Math.pow(AMT_R, c - 1);
+const amtDecode = c => (c & 512) ? (c & 511) * 10 : c;
 
 // tag 0 is always "Other". Max 64 per list (6 bits). [group, name]
 const INCOME_TAGS = [['Other', 'Other'], ['Other', 'Other 2'],
@@ -104,21 +106,21 @@ function tagSelect(tags, val) {
 }
 
 // ---------- state ----------
-// lines: {id, owner, tag, freq, code}   amount is derived: amtDecode(code) * FREQS[freq][1]
+// lines: {id, owner, tag, code}   weekly amount = amtDecode(code)
 let state = defaultState();
 function defaultState() {
-  return { period: 0, customDays: 90, split: 0, surplusTo: 0, saveUnit: 0, buffer: 10,
+  return { period: 0, customDays: 90, split: 0, surplusTo: 0, saveUnit: 0, buffer: 0,
     people: [{ id: uid(), init: 'AB', pct: 50 }, { id: uid(), init: 'CD', pct: 50 }], incomes: [], expenses: [] };
 }
 function uid() { return Math.random().toString(36).slice(2, 7); }
 function pname(p) { const same = state.people.filter(q => q.init === p.init); const k = same.indexOf(p); return p.init + (k > 0 ? `(${k})` : ''); }
 const cleanInit = s => (s || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2);
-const lineAmt = it => amtDecode(it.code) * FREQS[it.freq][1];
-const setLineAmt = (it, amt, isExp) => { it.code = amtEncode((Number(amt) || 0) / FREQS[it.freq][1], isExp); };
+const lineAmt = it => amtDecode(it.code);
+const setLineAmt = (it, weekly, isExp) => { it.code = amtEncode(weekly, isExp); };
 
 // ---------- calc ----------
 function periodDays() { return PERIODS[state.period][1] || Math.max(1, Number(state.customDays) || 1); }
-const perPeriod = (it, days) => amtDecode(it.code) * days;
+const perPeriod = (it, days) => amtDecode(it.code) / 7 * days;
 
 function calc() {
   const days = periodDays(), bufF = (Number(state.buffer) || 0) / 100;
@@ -159,12 +161,11 @@ const sel = (f, opts, val) => `<select data-f="${f}">` + opts.map((o, i) => `<op
 
 function lineTable(kind, owner, items, days) {
   const isExp = kind === 'expenses', tags = isExp ? EXPENSE_TAGS : INCOME_TAGS, max = isExp ? MAX_EXP : MAX_INC;
-  let html = `<table data-kind="${kind}" data-owner="${owner}"><tr><th>${isExp ? 'Expense' : 'Income'}</th><th>Amount</th><th>Freq</th><th>/period</th><th></th></tr>`;
+  let html = `<table data-kind="${kind}" data-owner="${owner}"><tr><th>${isExp ? 'Expense' : 'Income'}</th><th>$/week</th><th>entered as</th><th>/period</th><th></th></tr>`;
   for (const it of items) {
-    const a = lineAmt(it);
     html += `<tr data-id="${it.id}"><td>${tagSelect(tags, it.tag)}</td>
-      <td><input type="number" data-f="amt" value="${Math.round(a)}" title="grid value ${a.toFixed(2)}"></td>
-      <td>${sel('freq', FREQS.map(f => f[0]), it.freq)}</td>
+      <td><input type="number" data-f="amt" value="${lineAmt(it)}" min="0" max="${AMT_MAX}" step="${lineAmt(it) > 511 ? 10 : 1}"></td>
+      <td>${sel('conv', CONV.map(f => f[0]), 0)}</td>
       <td>${fmt(perPeriod(it, days))}</td>
       <td><button type="button" data-act="del">x</button></td></tr>`;
   }
@@ -208,18 +209,28 @@ document.body.addEventListener('input', e => {
   }
   const tr = t.closest('tr'), table = t.closest('table'), kind = table.dataset.kind;
   const item = state[kind].find(x => x.id === tr.dataset.id); if (!item) return;
-  if (f === 'amt') { setLineAmt(item, t.value, kind === 'expenses'); updateLink(); return; } // snap to grid on change, not per keystroke
-  if (f === 'freq') { const a = lineAmt(item); item.freq = Number(t.value); setLineAmt(item, a, kind === 'expenses'); }
-  else item[f] = Number(t.value);
+  if (f === 'amt') { item._raw = Number(t.value); return; } // commit on change
+  if (f === 'conv') return;
+  item[f] = Number(t.value);
   render();
 });
-document.body.addEventListener('change', e => { if (['pname', 'amt'].includes(e.target.dataset.f)) render(); });
+document.body.addEventListener('change', e => {
+  const t = e.target, f = t.dataset.f;
+  if (f === 'amt' || f === 'conv') {
+    const tr = t.closest('tr'), table = t.closest('table'), kind = table.dataset.kind;
+    const item = state[kind].find(x => x.id === tr.dataset.id); if (!item) return;
+    // amount typed is interpreted at the "entered as" unit, converted to weekly, then snapped
+    const raw = Number(tr.querySelector('[data-f=amt]').value) || 0, conv = CONV[Number(tr.querySelector('[data-f=conv]').value)][1];
+    setLineAmt(item, raw / conv, kind === 'expenses'); delete item._raw;
+    render();
+  } else if (f === 'pname') render();
+});
 
 document.body.addEventListener('click', e => {
   const act = e.target.dataset.act; if (!act) return;
   if (act === 'add') {
     const table = e.target.closest('table');
-    state[table.dataset.kind].push({ id: uid(), owner: table.dataset.owner, tag: 1, freq: 1, code: 0 });
+    state[table.dataset.kind].push({ id: uid(), owner: table.dataset.owner, tag: 2, code: 0 });
   } else if (act === 'del') {
     const table = e.target.closest('table'), tr = e.target.closest('tr');
     state[table.dataset.kind] = state[table.dataset.kind].filter(x => x.id !== tr.dataset.id);
@@ -247,7 +258,7 @@ $('#copy').onclick = () => navigator.clipboard.writeText($('#link').value).then(
 // header: ver4 period3 [days12] split2 surplus1 saveUnit2 buffer7 npeople3
 // per person: initials 10 [pct7]
 // per owner (H, then people in order): ninc4, lines; nexp5, lines
-// line: tag6 freq2 code8 = 16 bits exactly
+// line: tag6 code10 (scale1 + mantissa9) = 16 bits exactly
 class BitWriter {
   constructor() { this.bits = []; }
   w(val, n) { for (let i = n - 1; i >= 0; i--) this.bits.push((val >> i) & 1); }
@@ -265,7 +276,7 @@ function encode(s) {
   bw.w(s.split, 2); bw.w(s.surplusTo, 1); bw.w(s.saveUnit, 2); bw.w(s.buffer, 7);
   bw.w(s.people.length, 3);
   for (const p of s.people) { bw.init(p.init); if (s.split === 2) bw.w(Math.min(100, Math.max(0, Math.round(p.pct) || 0)), 7); }
-  const line = it => { bw.w(it.tag, 6); bw.w(it.freq, 2); bw.w(it.code, 8); };
+  const line = it => { bw.w(it.tag, 6); bw.w(it.code, 10); };
   for (const o of ['H', ...s.people.map(p => p.id)]) {
     const inc = s.incomes.filter(i => i.owner === o).slice(0, MAX_INC), exp = s.expenses.filter(e => e.owner === o).slice(0, MAX_EXP);
     bw.w(inc.length, 4); inc.forEach(line); bw.w(exp.length, 5); exp.forEach(line);
@@ -280,7 +291,7 @@ function decode(bytes) {
   const np = br.r(3); s.people = [];
   for (let i = 0; i < np; i++) { const p = { id: uid(), init: br.init(), pct: 0 }; if (s.split === 2) p.pct = br.r(7); s.people.push(p); }
   s.incomes = []; s.expenses = [];
-  const line = owner => ({ id: uid(), owner, tag: br.r(6), freq: br.r(2), code: br.r(8) });
+  const line = owner => ({ id: uid(), owner, tag: br.r(6), code: br.r(10) });
   for (const o of ['H', ...s.people.map(p => p.id)]) {
     let n = br.r(4); for (let i = 0; i < n; i++) s.incomes.push(line(o));
     n = br.r(5); for (let i = 0; i < n; i++) s.expenses.push(line(o));
@@ -309,17 +320,17 @@ function updateLink() {
     } catch (e) { $('#qr').innerHTML = `<span class="small">QR unavailable (${esc(e.message)})</span>`; }
   }, 150);
 }
-function save() { try { localStorage.setItem('budget4', JSON.stringify(state)); } catch {} }
+function save() { try { localStorage.setItem('budget5', JSON.stringify(state)); } catch {} }
 
 function load() {
   const hash = location.hash.slice(1);
   if (hash) { try { state = decode(b64u.dec(hash)); return; } catch (e) { alert('Could not read budget from link: ' + e.message); } }
-  try { const s = localStorage.getItem('budget4'); if (s) { state = JSON.parse(s); return; } } catch {}
+  try { const s = localStorage.getItem('budget5'); if (s) { state = JSON.parse(s); return; } } catch {}
   state = defaultState();
   state.people[0].init = 'MB'; state.people[1].init = 'CT';
   const [m, c] = state.people.map(p => p.id);
-  const inc = (owner, tag, amt, freq = 1) => { const it = { id: uid(), owner, tag: tagIndex(INCOME_TAGS, tag), freq, code: 0 }; setLineAmt(it, amt, false); state.incomes.push(it); };
-  const exp = (owner, tag, amt, freq = 1) => { const it = { id: uid(), owner, tag: tagIndex(EXPENSE_TAGS, tag), freq, code: 0 }; setLineAmt(it, amt, true); state.expenses.push(it); };
+  const inc = (owner, tag, amt) => state.incomes.push({ id: uid(), owner, tag: tagIndex(INCOME_TAGS, tag), code: amtEncode(amt, false) });
+  const exp = (owner, tag, amt) => state.expenses.push({ id: uid(), owner, tag: tagIndex(EXPENSE_TAGS, tag), code: amtEncode(amt, true) });
   inc(m, 'Salary', 800); inc(c, 'Salary', 2076.88);
   exp('H', 'Groceries', 75); exp('H', 'Electricity', 65); exp('H', 'Water', 0); exp('H', 'Internet', 11.25);
   exp(m, 'Rent', 180); exp(m, 'Gym', 19); exp(m, 'Dance classes', 60); exp(m, 'Streaming', 5); exp(m, 'Pharmacy', 20); exp(m, 'Travel savings', 60); exp(m, 'Public transport', 60); exp(m, 'Fun money', 75);
