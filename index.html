@@ -63,7 +63,7 @@
 <div id="up"><button type="button" id="upBtn" title="entries">&uarr;</button></div>
 
 <div id="bottom">
-  View: <select id="period"></select> <input type="number" id="customDays" value="90" min="1" max="4095" style="width:60px" disabled>
+  View: <select id="period"></select> <input type="number" id="customDays" value="90" min="1" max="4095" style="width:60px" hidden> <span id="customDaysLbl" hidden>days</span>
 
 </div>
 
@@ -212,7 +212,7 @@ const activeTab = {}; // owner id -> 0 income, 1 expenses, 2 goals (view state o
 
 function render() {
   const c = calc(), days = c.days;
-  $('#period').value = state.period; $('#customDays').value = state.customDays; $('#customDays').disabled = state.period !== 5;
+  $('#period').value = state.period; $('#customDays').value = state.customDays; $('#customDays').hidden = state.period !== 5; $('#customDaysLbl').hidden = state.period !== 5;
 
 
   let html = '';
