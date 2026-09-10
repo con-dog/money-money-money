@@ -18,6 +18,9 @@
   .summary { border-top: 1px solid #999; padding-top: 4px; }
   .splitopts { display: grid; grid-template-columns: auto auto 1fr; column-gap: 8px; row-gap: 4px; align-items: center; margin: 4px 0 8px; }
   .splitopts label { margin: 0; }
+  .tagcell { display: flex; align-items: center; gap: 4px; }
+  .gi { filter: grayscale(1) contrast(1.8); font-size: 1.1em; width: 1.3em; text-align: center; flex: none; }
+  .tagcell select { flex: 1; min-width: 0; }
   td, th { border: 1px solid #999; padding: 2px 4px; text-align: left; }
   select { max-width: 100%; }
   @media (max-width: 360px) {
@@ -134,6 +137,8 @@ const GOAL_TAGS = [['Other', 'Other'], ['Other', 'Other 2'],
   ['Fun', 'Holiday'], ['Fun', 'Tech'], ['Fun', 'Furniture'], ['Fun', 'Hobby gear'],
   ['Life', 'Education'], ['Life', 'Baby'], ['Life', 'Moving'], ['Life', 'Gift']];
 const tagIndex = (tags, name) => tags.findIndex(t => t[1] === name);
+const GROUP_ICON = { Other: '▫', Work: '💼', Passive: '🏦', Housing: '🏠', Utilities: '💡', Food: '🍽', Transport: '🚗', Health: '🩺', Lifestyle: '🎧', Family: '👪', Travel: '✈', Home: '🛋', Finance: '💳', Safety: '🛡', Big: '🏗', Fun: '🎉', Life: '🌱' };
+const groupIcon = (tags, i) => `<span class="gi" title="${tags[i][0]}">${GROUP_ICON[tags[i][0]] || '▫'}</span>`;
 
 function tagSelect(tags, val) {
   let html = `<select data-f="tag">`, group = null;
@@ -214,7 +219,7 @@ function lineTable(kind, owner, items) {
   const isExp = kind === 'expenses', tags = isExp ? EXPENSE_TAGS : INCOME_TAGS, max = isExp ? MAX_EXP : MAX_INC;
   let html = `<table data-kind="${kind}" data-owner="${owner}"><tr><th>${isExp ? 'Expense' : 'Income'}</th><th class="w-amt">$/week</th><th class="w-conv">entered as</th><th class="w-del"></th></tr>`;
   for (const it of items) {
-    html += `<tr data-id="${it.id}"><td>${tagSelect(tags, it.tag)}</td>
+    html += `<tr data-id="${it.id}"><td><div class="tagcell">${groupIcon(tags, it.tag)}${tagSelect(tags, it.tag)}</div></td>
       <td><input type="number" data-f="amt" value="${lineAmt(it)}" min="0" max="${AMT_MAX}" step="${lineAmt(it) > 511 ? 10 : 1}"></td>
       <td>${sel('conv', CONV.map(f => f[0]), 0)}</td>
       <td><button type="button" data-act="del">x</button></td></tr>`;
@@ -222,17 +227,35 @@ function lineTable(kind, owner, items) {
   return html + `<tr><td colspan="4">${items.length < max ? `<button type="button" data-act="add">+ ${isExp ? 'expense' : 'income'}</button>` : `<span class="small">max ${max}</span>`}</td></tr></table>`;
 }
 
-function goalTable(owner, items, weeklySavings, funding) {
-  let html = `<table data-kind="goals" data-owner="${owner}"><tr><th>Goal</th><th class="w-amt">Target $</th><th class="w-wk">Time to reach</th><th class="w-del"></th></tr>`;
+// Week-by-week timeline. Each person's savings pay their own goals in list order; what's left joins the
+// shared surplus to pay shared goals in list order. Returns goal id -> week reached (null = never).
+function goalTimeline(cw) {
+  const MAX_WEEKS = 5200, done = {};
+  const ps = state.people, rate = {}; for (const r of cw.rows) if (!r.isTotal) rate[r.isH ? 'H' : ps.find(p => pname(p) === r.name).id] = r.isH ? r.savings : r.savings;
+  const rem = {}; for (const g of state.goals) { const t = goalDecode(g.code); if (t > 0) rem[g.id] = t; }
+  const order = o => state.goals.filter(g => g.owner === o && rem[g.id] !== undefined && done[g.id] === undefined);
+  const pay = (o, avail, week) => { for (const g of order(o)) { if (avail <= 0) break; const p = Math.min(avail, rem[g.id]); rem[g.id] -= p; avail -= p; if (rem[g.id] <= 1e-9) done[g.id] = week; } return avail; };
+  for (let w = 1; w <= MAX_WEEKS && Object.keys(rem).length > Object.keys(done).length; w++) {
+    let pool = Math.max(0, rate['H'] || 0);
+    for (const p of ps) pool += pay(p.id, Math.max(0, rate[p.id] || 0), w);
+    pay('H', pool, w);
+  }
+  for (const id in rem) if (done[id] === undefined) done[id] = null;
+  return done;
+}
+
+function goalTable(owner, items, timeline, funding) {
+  let html = `<table data-kind="goals" data-owner="${owner}"><tr><th>Goal</th><th class="w-amt">Target $</th><th class="w-wk">Reached in</th><th class="w-del"></th></tr>`;
   for (const it of items) {
-    const target = goalDecode(it.code), wk = weeklySavings > 0 ? Math.ceil(target / weeklySavings) : null;
-    html += `<tr data-id="${it.id}"><td>${tagSelect(GOAL_TAGS, it.tag)}</td>
+    const target = goalDecode(it.code), wk = timeline[it.id];
+    html += `<tr data-id="${it.id}"><td><div class="tagcell">${groupIcon(GOAL_TAGS, it.tag)}${tagSelect(GOAL_TAGS, it.tag)}</div></td>
       <td><input type="number" data-f="goal" value="${target}" min="0" max="${GOAL_MAX}" step="${target > 5110 ? 100 : 10}"></td>
       <td>${target === 0 ? '' : wk === null ? '<span class="neg">never</span>' : `${wk} wk (${(wk / 52.18).toFixed(1)} yr)`}</td>
       <td><button type="button" data-act="del">x</button></td></tr>`;
   }
   html += `<tr><td colspan="4">${items.length < MAX_GOAL ? `<button type="button" data-act="add">+ goal</button>` : `<span class="small">max ${MAX_GOAL}</span>`}</td></tr></table>`;
   if (funding) html += `<div class="small">Funded from: ${funding}</div>`;
+  html += `<div class="small">Goals are paid in order, top first.</div>`;
   return html;
 }
 function splitTable(share) {
@@ -247,6 +270,7 @@ const activeTab = {}; // owner id -> tab index (view state only). Shared: 0 spli
 
 function render() {
   const c = calc(), cw = calc(7); // cards are always weekly; the forecast table follows the view period
+  const timeline = goalTimeline(cw);
   $('#period').value = state.period;
 
 
@@ -261,7 +285,7 @@ function render() {
       [...(isH ? [splitTable(cw.share)] : []),
        lineTable('incomes', col.id, state.incomes.filter(i => i.owner === col.id)),
        lineTable('expenses', col.id, state.expenses.filter(e => e.owner === col.id)),
-       goalTable(col.id, (state.goals || []).filter(g => g.owner === col.id), isH ? row.goalPool || 0 : row.savings || 0,
+       goalTable(col.id, (state.goals || []).filter(g => g.owner === col.id), timeline,
          isH ? [`shared ${fmt(row.savings || 0)}`, ...cw.rows.filter(r => !r.isH && !r.isTotal).map(r => `${r.name} ${fmt(Math.max(0, r.savings))}`)].join(' + ') + ` = ${fmt(row.goalPool || 0)} /week` : null)][activeTab[col.id] || 0] +
       `</div><div class="summary">Income ${fmt(row.income)} &minus; expenses ${fmt(row.expense)} = <b class="${cls(row.income - row.expense)}">${fmt(row.income - row.expense)}</b> /week</div>` +
       (!isH && row.contribH ? `<div class="small">Share of household net: <span class="${cls(row.contribH)}">${fmt(row.contribH)}</span> /week</div>` : '') + `</div>`;
