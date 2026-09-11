@@ -43,6 +43,8 @@
   .tabs button { flex: 1; padding: 4px; }
   .sheet { flex: 1; min-height: 0; min-width: 0; overflow: auto; }
   .summary { border-top: 1px solid var(--border); padding-top: 4px; }
+  @media (max-width: 480px) { .sh { display: block; } }
+  @media (min-width: 800px) { #track { max-height: 70vh; } }
   table { border-collapse: collapse; margin-bottom: 8px; width: 100%; table-layout: fixed; }
   td, th { border: 1px solid var(--border); padding: 2px 4px; text-align: left; }
   th { border-bottom: 2px solid var(--strong); white-space: nowrap; }
@@ -65,7 +67,8 @@
   .amt { display: flex; }
   .amt input { min-width: 0; height: auto; }
   .who { display: flex; flex-direction: column; width: 52px; flex: none; }
-  .who b { flex: 1; color: #fff; font-size: 0.75em; line-height: 1.5; text-align: center; white-space: nowrap; }
+  .who b { flex: 1; display: flex; justify-content: space-between; padding: 0 3px; color: #fff; font-size: 0.75em; line-height: 1.5; white-space: nowrap; }
+  .who i { font-style: normal; opacity: 0.75; }
   .small { font-size: 0.85em; color: var(--muted); }
   #incoming { border: 2px solid var(--neg); padding: 6px; margin: 8px 0; }
   #share { text-align: center; margin: auto; padding: 12px; border: 3px solid var(--strong); background: #fff; }
@@ -321,7 +324,7 @@ function lineTable(kind, owner, fund) {
     const a = amtDecode(x.code), n = note && note.id === x.id;
     html += `<tr data-id="${x.id}"><td><div class="tagcell"><span class="${m ? 'drag off' : 'drag'}" data-drag title="${m ? 'clear sort to reorder' : 'drag to reorder'}">⠿</span><span class="gi" title="${TAGS[kind][x.tag][0]}">${ICON[TAGS[kind][x.tag][0]]}</span>${tagSelect(kind, x.tag)}</div></td>` +
       `<td>${fund ? '<div class="amt">' : ''}<input type="number" data-f="amt" value="${a}" min="0" max="${AMT_MAX}" step="${a > 511 ? 10 : 1}"${n ? ' class="snapped"' : ''}>` +
-      (fund ? `<div class="who">${fund.filter(x => x.p).map(x => `<b style="background:${x.colour}" title="${x.name}">${fmt(a * x.pct / 100)}</b>`).join('')}</div></div>` : '') + `</td>` +
+      (fund ? `<div class="who">${fund.filter(x => x.p).map(x => `<b style="background:${x.colour}"><i>${x.p.init || x.name[0]}</i>${fmt(a * x.pct / 100)}</b>`).join('')}</div></div>` : '') + `</td>` +
       `<td><select data-f="conv">${CONV.map((c, i) => opt(i, c[0], !i)).join('')}</select></td><td><button type="button" data-act="del">x</button></td></tr>`;
   }
   html += `<tr><td colspan="4">${items.length < KMAX[kind] ? `<button type="button" data-act="add">+ ${name.toLowerCase()}</button>` : ''}</td></tr></table>`;
@@ -347,8 +350,9 @@ function render() {
       `</h3><div class="tabs">${tabs.map((n, i) => `<button type="button" data-tab="${i}"${t === i ? ' class="on"' : ''}>${n}</button>`).join('')}</div><div class="sheet">${sheets[t]()}</div>` +
       `<div class="summary">` +
       // shared: each person's own remainder, their contribution to the shared shortfall in brackets, then the shared lines, then what the household has left
-      (isH ? cw.rows.filter(r => !r.isH && !r.isTotal).map(r => `${r.name} ${fmt(r.i - r.e - r.s)} (${fmt(-r.take)}) + `).join('') : '') +
-      `Income ${fmt(row.i)} &minus; expenses ${fmt(row.e)} &minus; savings ${fmt(row.s)} = <b class="${cls(isH ? cw.rows.at(-1).left : net)}">${fmt(isH ? cw.rows.at(-1).left : net)}</b> /week` +
+      (isH ? cw.rows.filter(r => !r.isH && !r.isTotal).map(r => `${r.name} ${fmt(r.i - r.e - r.s)} (${fmt(-r.take)})`).join(' + ') : '') +
+      `<span class="sh">${[['Income', row.i, ' + '], ['expenses', row.e, ' &minus; '], ['savings', row.s, ' &minus; ']].filter(t => t[1]).map(t => `${t[2]}${t[0]} ${fmt(t[1])}`).join('').replace(/^ \+ /, isH ? ' + ' : '')}</span>` +
+      ` = <b class="${cls(isH ? cw.rows.at(-1).left : net)}">${fmt(isH ? cw.rows.at(-1).left : net)}</b> /week` +
       (isH && (row.e || row.s) ? `<div class="small">Each line: ${fund.filter(x => x.pct).map(x => `${x.name} ${x.pct}%`).join(' · ')}</div>` : '') +
       (row.take ? `<div class="small">To shared: <span class="neg">${fmt(-row.take)}</span> /week</div>` : '') + `</div></div>`;
   }

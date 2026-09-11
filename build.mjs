@@ -4,8 +4,21 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { deflateRawSync } from 'node:zlib';
 import { createRequire } from 'node:module';
+import { createHash } from 'node:crypto';
 
 const src = readFileSync('index.html', 'utf8');
+
+// Link format lock. Anything that changes what a link means (tag lists, VERSION, the serialisation code) is hashed;
+// if the hash changes while VERSION stays the same the build fails. Bump VERSION (and keep the old decoder) to proceed.
+const version = +src.match(/const VERSION = (\d+);/)[1];
+const formatText = [...src.matchAll(/parseTags\('([^']*)'\)/g)].map(m => m[1]).join('|') + src.slice(src.indexOf('function encode('), src.indexOf('// base32'));
+const formatHash = createHash('sha256').update(formatText).digest('hex').slice(0, 16);
+let lock = {}; try { lock = JSON.parse(readFileSync('format.lock.json', 'utf8')); } catch {}
+if (lock.version === version && lock.hash && lock.hash !== formatHash) {
+  console.error(`Link format changed but VERSION is still ${version}. Bump VERSION and keep a decoder for v${version}, or restore the tag lists.`);
+  process.exit(1);
+}
+writeFileSync('format.lock.json', JSON.stringify({ version, hash: formatHash }, null, 2) + '\n');
 const run = (cmd, input) => execSync(cmd, { input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'inherit'] });
 
 // minify every <style> block; merge all <script> blocks into one so terser can mangle top-level names across them
