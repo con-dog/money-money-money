@@ -5,30 +5,29 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Household Budget</title>
 <style>
-  :root { --bg: #fff; --fg: #111; --surface: #fff; --border: #999; --strong: #333; --muted: #555; --pos: #070; --neg: #b00; --neg-bg: #fde8e8; --btn: #efefef; }
+  :root { --bg: #fff; --fg: #111; --border: #999; --strong: #333; --muted: #555; --pos: #070; --neg: #b00; --neg-bg: #fde8e8; --btn: #efefef; }
+  * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
   body { font-family: monospace; color: var(--fg); background: var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Crect x='6' y='6' width='2' height='2' fill='%23c8c8c8'/%3E%3C/svg%3E"); }
-  .col, table, #incoming, #pos, #bottom, h1 span { background: var(--surface); }
-  *, ::before, ::after { border-radius: 0 !important; box-shadow: none !important; }
-  button, input, select { font: inherit; color: var(--fg); background: var(--surface); border: 2px solid var(--strong); padding: 2px 6px; margin: 0; appearance: none; }
+  .col, table, #incoming, #pos, #bottom, h1 span { background: var(--bg); }
+  button, input, select { font: inherit; color: var(--fg); background: var(--bg); border: 2px solid var(--strong); padding: 2px 6px; margin: 0; appearance: none; }
   button { background: var(--btn); cursor: pointer; text-transform: uppercase; }
   button:active, .tabs .on { background: var(--strong); color: var(--bg); border-color: var(--strong); }
   :focus-visible { outline: 2px solid var(--fg); outline-offset: 0; }
   ::-webkit-inner-spin-button { -webkit-appearance: none; }
   input:disabled { background: var(--btn); color: var(--muted); border-color: var(--border); }
-  select { max-width: 100%; padding-right: 16px; background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 0h10L5 6z'/%3E%3C/svg%3E") right 3px center/10px 6px no-repeat; }
+  select { max-width: 100%; padding-right: 16px; background: var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 0h10L5 6z'/%3E%3C/svg%3E") right 3px center/10px 6px no-repeat; }
   select, ::picker(select) { appearance: base-select; }
-  ::picker(select) { border: 2px solid var(--strong); background: var(--surface); color: var(--fg); padding: 0; }
+  ::picker(select) { border: 2px solid var(--strong); border-radius: 0; background: var(--bg); color: var(--fg); padding: 0; }
   option { padding: 2px 6px; }
   option:checked { background: var(--strong); color: var(--bg); }
   option:hover { background: var(--btn); }
   optgroup { font-weight: bold; }
   select::picker-icon { display: none; }
-  input[type=radio] { width: 14px; height: 14px; padding: 0; vertical-align: middle; display: inline-grid; place-content: center; }
-  input[type=radio]::before { content: ''; width: 6px; height: 6px; background: var(--fg); transform: scale(0); }
-  input[type=radio]:checked::before { transform: scale(1); }
+  input[type=radio] { width: 14px; height: 14px; padding: 0; vertical-align: middle; }
+  input[type=radio]:checked { background: var(--fg); }
   main { height: 100dvh; overflow-y: auto; scroll-snap-type: y mandatory; }
-  .page { height: 100dvh; box-sizing: border-box; scroll-snap-align: start; max-width: 800px; margin: 0 auto; padding: 8px; display: flex; flex-direction: column; }
+  .page { height: 100dvh; scroll-snap-align: start; max-width: 800px; margin: 0 auto; padding: 8px; display: flex; flex-direction: column; }
   h1 { text-align: center; font-size: 1.3em; letter-spacing: 0.2em; margin: 4px 0 8px; padding-bottom: 6px; border-bottom: 3px solid var(--strong); }
   h1 span { padding: 2px 10px; }
   h3 { margin: 4px 0; }
@@ -36,10 +35,10 @@
   .arrow button { font-size: 1.4em; padding: 2px 30px; }
   #nav { display: flex; justify-content: space-between; margin: 6px 0; }
   #pos { display: table; margin: 4px auto 0; padding: 2px 8px; }
-  #bottom { display: inline-block; align-self: flex-start; padding: 2px 8px; margin-top: 8px; }
+  #bottom { align-self: flex-start; padding: 2px 8px; margin-top: 8px; }
   #track { flex: 1; min-height: 0; display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 8px; scrollbar-width: none; }
   #track::-webkit-scrollbar { display: none; }
-  .col { flex: 0 0 100%; min-width: 0; min-height: 0; display: flex; flex-direction: column; scroll-snap-align: start; box-sizing: border-box; border: 3px solid var(--strong); padding: 6px; }
+  .col { flex: 0 0 100%; min-width: 0; min-height: 0; display: flex; flex-direction: column; scroll-snap-align: start; border: 3px solid var(--strong); padding: 6px; }
   .tabs { display: flex; gap: 4px; margin: 6px 0; }
   .tabs button { flex: 1; padding: 4px; }
   .sheet { flex: 1; min-height: 0; min-width: 0; overflow: auto; }
@@ -48,14 +47,14 @@
   td, th { border: 1px solid var(--border); padding: 2px 4px; text-align: left; }
   th { border-bottom: 2px solid var(--strong); white-space: nowrap; }
   .w-amt { width: 66px; } .w-conv { width: 64px; } .w-del { width: 34px; }
-  td select, td input { width: 100%; box-sizing: border-box; }
+  td select, td input { width: 100%; }
   .sortable { cursor: pointer; user-select: none; }
   .splitopts { display: grid; grid-template-columns: auto auto 1fr; gap: 4px 8px; align-items: center; margin: 4px 0 8px; }
   .tagcell { display: flex; align-items: center; gap: 4px; }
   .tagcell select { flex: 1; min-width: 0; }
   .drag { cursor: grab; touch-action: none; user-select: none; color: var(--muted); padding: 0 2px; }
-  .drag.off { opacity: 0.35; cursor: default; }
-  .dragging { opacity: 0.4; }
+  .off, .dragging { opacity: 0.4; }
+  .off { cursor: default; }
   .gi { font-size: 1.25em; line-height: 1; width: 1.3em; text-align: center; }
   .gi, .drag { flex: none; }
   .neg { color: var(--neg); } .pos { color: var(--pos); }
@@ -64,7 +63,7 @@
   .snapped { outline: 2px solid var(--pos); }
   .small { font-size: 0.85em; color: var(--muted); }
   #incoming { border: 2px solid var(--neg); padding: 6px; margin: 8px 0; }
-  #share { text-align: center; width: fit-content; align-self: center; margin: auto; padding: 12px; border: 3px solid var(--strong); background: #fff; }
+  #share { text-align: center; margin: auto; padding: 12px; border: 3px solid var(--strong); background: #fff; }
   #share button { font-size: 1.2em; padding: 6px 24px; }
   #qr svg { display: block; margin: 0 auto; max-width: 90vw; max-height: 60vh; height: auto; }
   #savsum { margin-top: 12px; width: auto; min-width: 50%; }
