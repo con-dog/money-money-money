@@ -9,7 +9,7 @@
   * { box-sizing: border-box; border-radius: 0; }
   html, body { height: 100%; margin: 0; }
   body { font-family: monospace; color: var(--fg); background: var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Crect x='6' y='6' width='2' height='2' fill='%23c8c8c8'/%3E%3C/svg%3E"); }
-  .col, table, #incoming, #pos, #bottom, h1 span { background: var(--bg); }
+  .col, table, #pos, #bottom, h1 span { background: var(--bg); }
   button, input, select { font: inherit; color: var(--fg); background: var(--bg); border: 2px solid var(--strong); padding: 2px 6px; margin: 0; appearance: none; }
   button { background: var(--btn); cursor: pointer; text-transform: uppercase; }
   button:active, .tabs .on { background: var(--strong); color: var(--bg); border-color: var(--strong); }
@@ -70,7 +70,6 @@
   .who b { flex: 1; display: flex; justify-content: space-between; padding: 0 3px; color: #fff; font-size: 0.75em; line-height: 1.5; white-space: nowrap; }
   .who i { font-style: normal; opacity: 0.75; }
   .small { font-size: 0.85em; color: var(--muted); }
-  #incoming { border: 2px solid var(--neg); padding: 6px; margin: 8px 0; }
   #share { text-align: center; margin: auto; padding: 12px; border: 3px solid var(--strong); background: #fff; }
   #share button { font-size: 1.2em; padding: 6px 24px; }
   #qr svg { display: block; margin: 0 auto; max-width: 90vw; max-height: 60vh; height: auto; }
@@ -93,11 +92,9 @@
 <section class="page" id="page1">
 <h1><span>BUDGET</span></h1>
 
-<div id="incoming" hidden></div>
-
 <div id="nav">
   <button type="button" id="prev">&larr;</button>
-  <button type="button" id="addPerson" title="add person">+</button>
+  <span><button type="button" id="undo" title="undo">&#8630;</button> <button type="button" id="addPerson" title="add person">+</button> <button type="button" id="redo" title="redo">&#8631;</button></span>
   <button type="button" id="next">&rarr;</button>
 </div>
 <div id="track"></div>
@@ -304,7 +301,8 @@ const cls = n => n < 0 ? 'neg' : 'pos';
 const opt = (v, label, on) => `<option value="${v}"${on ? ' selected' : ''}>${label}</option>`;
 const swatch = c => `<span style="display:inline-block;width:12px;height:12px;background:${c};vertical-align:middle"></span>`;
 const sortMode = { i: 0, e: 0, s: 0 }; // view only: 0 as entered, 1 highest first, 2 lowest first
-const activeTab = {}; // owner id -> tab index (view only)
+const activeTab = {}; // 'H' or person index -> tab index (view only)
+const tabKey = o => o === 'H' ? 'H' : people().findIndex(p => p.id === o);
 let note = null; // one-shot {id, text} when an entered value was snapped
 
 function tagSelect(kind, val) {
@@ -341,7 +339,7 @@ function render() {
   let html = '';
   for (const o of owners(state)) {
     const isH = o === 'H', p = people().find(q => q.id === o), row = cw.rows[isH ? people().length : pidx(p)];
-    const tabs = isH ? ['Split', 'Income', 'Expenses', 'Savings'] : ['Income', 'Expenses', 'Savings'], t = activeTab[o] || 0;
+    const tabs = isH ? ['Split', 'Income', 'Expenses', 'Savings'] : ['Income', 'Expenses', 'Savings'], t = activeTab[tabKey(o)] || 0;
     const fund = isH ? funding(cw) : null;
     const sheets = [...(isH ? [() => splitTable(cw.share)] : []), ...KINDS.map(k => () => lineTable(k, o, k !== 'i' && fund))];
     const net = row.i - row.e - row.s;
@@ -395,7 +393,7 @@ document.body.addEventListener('change', e => {
 document.body.addEventListener('click', e => {
   const t = e.target, act = t.dataset.act;
   if (t.dataset.sort) sortMode[t.dataset.sort] = (sortMode[t.dataset.sort] + 1) % 3;
-  else if (t.dataset.tab) activeTab[t.closest('.col').dataset.owner] = +t.dataset.tab;
+  else if (t.dataset.tab) activeTab[tabKey(t.closest('.col').dataset.owner)] = +t.dataset.tab;
   else if (act === 'add') { const { kind, owner } = ctx(t); state.l[kind].push({ id: uid(), owner, tag: kind === 'e' ? 2 : 1, code: 0 }); }
   else if (act === 'del') { const { kind, item } = ctx(t); state.l[kind] = state.l[kind].filter(x => x !== item); }
   else if (act === 'delPerson') {
@@ -464,53 +462,32 @@ const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 const b32enc = bytes => { let b = '', o = ''; for (const x of bytes) b += x.toString(2).padStart(8, '0'); for (let i = 0; i < b.length; i += 5) o += B32[parseInt(b.slice(i, i + 5).padEnd(5, '0'), 2)]; return o; };
 const b32dec = str => { let b = ''; for (const c of str.toUpperCase()) { const v = B32.indexOf(c); if (v < 0) throw new Error('bad char ' + c); b += v.toString(2).padStart(5, '0'); } const o = []; for (let i = 0; i + 8 <= b.length; i += 8) o.push(parseInt(b.slice(i, i + 8), 2)); return Uint8Array.from(o); };
 
+// undo / redo: the last 50 distinct links, kept locally. State is rebuilt from the link, so this is also the saved budget.
+let hist = { s: [], p: -1 };
+try { hist = JSON.parse(localStorage.h) || hist; } catch {}
+const saveHist = () => { try { localStorage.h = JSON.stringify(hist); localStorage.period = state.period; } catch {} };
+const jump = d => { hist.p += d; state = decode(b32dec(hist.s[hist.p])); render(); };
+$('#undo').onclick = () => jump(-1);
+$('#redo').onclick = () => jump(1);
 let linkTimer;
 function updateLink() {
-  save(); clearTimeout(linkTimer);
+  clearTimeout(linkTimer);
   linkTimer = setTimeout(() => {
     const enc = b32enc(encode(state)); history.replaceState(null, '', '#' + enc);
+    if (enc !== hist.s[hist.p]) { hist.s = hist.s.slice(0, hist.p + 1).concat(enc).slice(-50); hist.p = hist.s.length - 1; }
+    saveHist(); $('#undo').disabled = hist.p < 1; $('#redo').disabled = hist.p >= hist.s.length - 1;
     const url = location.href;
     const q = qrcode(); q.addData(url.slice(0, url.indexOf('#') + 1), 'Byte'); q.addData(enc, 'Alphanumeric'); q.make(); $('#qr').innerHTML = q.createSvgTag({ cellSize: 6, margin: 2 });
   }, 150);
 }
-const save = () => { try { localStorage.b1 = JSON.stringify(state); localStorage.period = state.period; } catch {} };
 const viewPref = () => PERIODS[localStorage.period] ? +localStorage.period : 0;
 
-// ---------- incoming link ----------
-function diff(a, b) {
-  const out = [], n = Math.max(a.people.length, b.people.length);
-  if (a.people.length !== b.people.length) out.push(`people: ${a.people.length} → ${b.people.length}`);
-  const splitName = s => ['equal', 'income', 'custom ' + s.people.map(p => p.pct + '%').join('/')][s.split];
-  if (splitName(a) !== splitName(b)) out.push(`split: ${splitName(a)} → ${splitName(b)}`);
-  a.people.forEach((p, i) => { const q = b.people[i]; if (q && p.init !== q.init) out.push(`${COLOURS[i][0]}: initials ${p.init || '(none)'} → ${q.init || '(none)'}`); });
-  const who = i => i ? (b.people[i - 1] || a.people[i - 1]).init || COLOURS[i - 1][0] : 'Household';
-  for (let i = 0; i <= n; i++) for (const k of KINDS) {
-    const o = i ? (b.people[i - 1] || a.people[i - 1]).id : 'H', la = of(k, i ? (a.people[i - 1] || {}).id : 'H', a), lb = of(k, i ? (b.people[i - 1] || {}).id : 'H', b);
-    const label = x => `${k === 's' ? 'saving ' : ''}${TAGS[k][x.tag][1]} $${amtDecode(x.code)}/wk`, key = x => x.tag + ':' + x.code;
-    // identical lines match first; leftovers pair by tag as "changed"; the rest are added or removed
-    const pool = lb.map(key), rem = [], add = [...lb];
-    for (const x of la) { const j = pool.indexOf(key(x)); if (j >= 0) { pool[j] = null; add[j] = null; } else rem.push(x); }
-    const adds = add.filter(Boolean);
-    for (const x of rem) { const j = adds.findIndex(y => y.tag === x.tag); if (j >= 0) { out.push(`${who(i)}: ${label(x)} → ${label(adds[j])}`); adds.splice(j, 1); } else out.push(`${who(i)}: − ${label(x)}`); }
-    for (const y of adds) out.push(`${who(i)}: + ${label(y)}`);
-  }
-  return out;
-}
-function showIncoming(local, incoming) {
-  const d = diff(local, incoming), box = $('#incoming'), list = d.join('<br>');
-  box.innerHTML = `<b>Incoming link differs from your saved budget</b> (${d.length} change${d.length === 1 ? '' : 's'}):<br>${list}<br><button type="button" id="take">Take theirs</button> <button type="button" id="keep">Keep mine</button>`;
-  box.hidden = false;
-  $('#take').onclick = () => { state = incoming; box.innerHTML = `<b>Loaded incoming link.</b> Changes from your previous version:<br>${list}<br><button type="button" id="dismiss">Dismiss</button>`; $('#dismiss').onclick = () => { box.hidden = true; }; render(); };
-  $('#keep').onclick = () => { box.hidden = true; state = local; render(); };
-  state = local; render();
-}
+// a link in the URL wins; otherwise the current point in local history; otherwise an empty budget
 function load() {
-  const hash = location.hash.slice(1);
-  let local = null, incoming = null;
-  try { local = JSON.parse(localStorage.b1); } catch {}
-  if (hash) try { incoming = decode(b32dec(hash)); } catch (e) { alert('Could not read budget from link: ' + e.message); }
-  if (incoming && local && b32enc(encode(local)) !== hash) return showIncoming(local, incoming);
-  state = incoming || local || defaultState(); render();
+  const hash = location.hash.slice(1); state = null;
+  if (hash) try { state = decode(b32dec(hash)); } catch (e) { alert('Could not read budget from link: ' + e.message); }
+  if (!state) state = hist.s[hist.p] ? decode(b32dec(hist.s[hist.p])) : defaultState();
+  render();
 }
 onhashchange = load; // a link pasted into an open tab
 load();

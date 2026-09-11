@@ -41,7 +41,7 @@ writeFileSync('dist/index.min.html', out);
 // HTML strings, so they're renamed here by context: ".name" selectors, id="name" / #name, class attribute values
 // (plain string literals made only of class names), and data-name attributes with their dataset.name reads.
 const CLASSES = 'tagcell sortable splitopts summary sheet tabs small snapped dragging drag total red gi col off on neg pos arrow page w-amt w-conv w-del amt who w-amt2'.split(' ');
-const IDS = 'track pos nav prev next addPerson period forecast savsum incoming share qr shareBtn shareMsg page1 page2 page3 take keep dismiss bottom'.split(' ');
+const IDS = 'track pos nav prev next addPerson period forecast savsum share qr shareBtn shareMsg page1 page2 page3 bottom undo redo'.split(' ');
 const DATA = 'act tab sort drag go kind owner pid id f'.split(' ');
 const short = i => (i < 26 ? String.fromCharCode(97 + i) : 'a' + String.fromCharCode(71 + i)); // a..z, aA..
 const esc = t => t.replace(/-/g, '\\-');
