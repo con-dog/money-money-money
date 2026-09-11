@@ -320,12 +320,12 @@ function funding(cw) {
 function lineTable(kind, owner, fund) {
   const items = of(kind, owner), m = sortMode[kind], name = KNAME[kind];
   const rows = m ? [...items].sort((a, b) => (m === 1 ? 1 : -1) * (amtDecode(b.code) - amtDecode(a.code))) : items;
-  let html = `<table data-kind="${kind}" data-owner="${owner}"><tr><th>${name}</th><th class="${fund ? people().length > 2 ? 'w-amt4' : 'w-amt2' : 'w-amt'} sortable" data-sort="${kind}" title="sort">$/week${['', ' ▼', ' ▲'][m]}</th><th class="w-conv">period</th><th class="w-del"></th></tr>`;
+  let html = `<table data-kind="${kind}" data-owner="${owner}"><tr><th>${name}</th><th class="${fund ? people().length > 2 ? 'w-amt4 sortable' : 'w-amt2 sortable' : 'w-amt sortable'}" data-sort="${kind}" title="sort">$/week${['', ' ▼', ' ▲'][m]}</th><th class="w-conv">period</th><th class="w-del"></th></tr>`;
   for (const x of rows) {
     const a = amtDecode(x.code), n = note && note.id === x.id;
     html += `<tr data-id="${x.id}"><td><div class="tagcell"><span class="${m ? 'drag off' : 'drag'}" data-drag title="${m ? 'clear sort to reorder' : 'drag to reorder'}">⠿</span><span class="gi" title="${TAGS[kind][x.tag][0]}">${ICON[TAGS[kind][x.tag][0]]}</span>${tagSelect(kind, x.tag)}</div></td>` +
       `<td>${fund ? '<div class="amt">' : ''}<input type="number" data-f="amt" value="${a}" min="0" max="${AMT_MAX}" step="${a > 511 ? 10 : 1}"${n ? ' class="snapped"' : ''}>` +
-      (fund ? `<div class="who${people().length > 2 ? ' who4' : ''}">${fund.filter(x => x.p).map(x => `<b style="background:${x.colour}"><i>${x.p.init || x.name[0]}</i>${fmt(a * x.pct / 100)}</b>`).join('')}</div></div>` : '') + `</td>` +
+      (fund ? `<div class="${people().length > 2 ? 'who who4' : 'who'}">${fund.filter(x => x.p).map(x => `<b style="background:${x.colour}"><i>${x.p.init || x.name[0]}</i>${fmt(a * x.pct / 100)}</b>`).join('')}</div></div>` : '') + `</td>` +
       `<td><select data-f="conv">${CONV.map((c, i) => opt(i, c[0], !i)).join('')}</select></td><td><button type="button" data-act="del">x</button></td></tr>`;
   }
   html += `<tr><td colspan="4">${items.length < KMAX[kind] ? `<button type="button" data-act="add">+ ${name.toLowerCase()}</button>` : ''}</td></tr></table>`;

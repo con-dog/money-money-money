@@ -38,7 +38,7 @@ function shorten(html) {
   const count = (re) => (html.match(re) || []).length;
   const cmap = Object.fromEntries(CLASSES.map((c, i) => [c, short(i)])), alt = CLASSES.map(esc).join('|');
   // quoted lists made only of class names (class attributes, classList calls, selector strings)
-  const listRe = new RegExp(`(?<!(?:id|for|name|type|title|placeholder|value)=)(["'])( ?(?:${alt})(?: (?:${alt}))* ?)\\1`, 'g');
+  const listRe = new RegExp(`(?<!(?:id|for|name|type|title|placeholder|value|data-\\w+)=)(["'])( ?(?:${alt})(?: (?:${alt}))* ?)\\1`, 'g');
   html = html.replace(listRe, (m, q, list) => q + list.replace(new RegExp(`(?<![\\w-])(?:${alt})(?![\\w-])`, 'g'), w => cmap[w]) + q);
   CLASSES.forEach(c => {
     const re = new RegExp(`(?<![\\w$)\\]])\\.${esc(c)}(?![\\w-])`, 'g');
@@ -55,6 +55,7 @@ function shorten(html) {
     if (!count(re1)) throw new Error('data attribute not found: ' + d);
     html = html.replace(re1, 'data-' + n).replace(re2, 'dataset.' + n);
   });
+  for (const c of CLASSES) if (new RegExp(`class="[^"]*(?<![\\w-])${esc(c)}(?![\\w-])[^"]*"`).test(html)) throw new Error('class left unrenamed in a template: ' + c);
   return html;
 }
 out = shorten(out);
