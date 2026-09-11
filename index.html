@@ -63,10 +63,12 @@
   .red td { background: var(--neg-bg); }
   .total { font-weight: bold; }
   .snapped { outline: 2px solid var(--pos); }
-  .w-amt2 { width: 122px; }
+  .w-amt2 { width: 122px; } .w-amt4 { width: 170px; }
   .amt { display: flex; }
   .amt input { min-width: 0; height: auto; }
   .who { display: flex; flex-direction: column; width: 52px; flex: none; }
+  .who4 { display: grid; grid-template-columns: 1fr 1fr; width: 100px; }
+  .who4 b:nth-child(3):last-child { grid-column: span 2; }
   .who b { flex: 1; display: flex; justify-content: space-between; padding: 0 3px; color: #fff; font-size: 0.75em; line-height: 1.5; white-space: nowrap; }
   .who i { font-style: normal; opacity: 0.75; }
   .small { font-size: 0.85em; color: var(--muted); }
@@ -82,7 +84,7 @@
   }
   @media (max-width: 360px) {
     .page { padding: 4px; } body { font-size: 12px; } .col { padding: 4px; }
-    .w-amt, .w-conv { width: 58px; } .w-del { width: 28px; } .w-amt2 { width: 104px; } .who { width: 46px; }
+    .w-amt, .w-conv { width: 58px; } .w-del { width: 28px; } .w-amt2 { width: 104px; } .who { width: 46px; } .w-amt4 { width: 150px; } .who4 { width: 88px; } .who4 b { font-size: 0.65em; padding: 0 2px; }
     td, th { padding: 1px 2px; }
   }
 </style>
@@ -317,12 +319,12 @@ function funding(cw) {
 function lineTable(kind, owner, fund) {
   const items = of(kind, owner), m = sortMode[kind], name = KNAME[kind];
   const rows = m ? [...items].sort((a, b) => (m === 1 ? 1 : -1) * (amtDecode(b.code) - amtDecode(a.code))) : items;
-  let html = `<table data-kind="${kind}" data-owner="${owner}"><tr><th>${name}</th><th class="${fund ? 'w-amt2' : 'w-amt'} sortable" data-sort="${kind}" title="sort">$/week${['', ' ▼', ' ▲'][m]}</th><th class="w-conv">period</th><th class="w-del"></th></tr>`;
+  let html = `<table data-kind="${kind}" data-owner="${owner}"><tr><th>${name}</th><th class="${fund ? people().length > 2 ? 'w-amt4' : 'w-amt2' : 'w-amt'} sortable" data-sort="${kind}" title="sort">$/week${['', ' ▼', ' ▲'][m]}</th><th class="w-conv">period</th><th class="w-del"></th></tr>`;
   for (const x of rows) {
     const a = amtDecode(x.code), n = note && note.id === x.id;
     html += `<tr data-id="${x.id}"><td><div class="tagcell"><span class="${m ? 'drag off' : 'drag'}" data-drag title="${m ? 'clear sort to reorder' : 'drag to reorder'}">⠿</span><span class="gi" title="${TAGS[kind][x.tag][0]}">${ICON[TAGS[kind][x.tag][0]]}</span>${tagSelect(kind, x.tag)}</div></td>` +
       `<td>${fund ? '<div class="amt">' : ''}<input type="number" data-f="amt" value="${a}" min="0" max="${AMT_MAX}" step="${a > 511 ? 10 : 1}"${n ? ' class="snapped"' : ''}>` +
-      (fund ? `<div class="who">${fund.filter(x => x.p).map(x => `<b style="background:${x.colour}"><i>${x.p.init || x.name[0]}</i>${fmt(a * x.pct / 100)}</b>`).join('')}</div></div>` : '') + `</td>` +
+      (fund ? `<div class="who${people().length > 2 ? ' who4' : ''}">${fund.filter(x => x.p).map(x => `<b style="background:${x.colour}"><i>${x.p.init || x.name[0]}</i>${fmt(a * x.pct / 100)}</b>`).join('')}</div></div>` : '') + `</td>` +
       `<td><select data-f="conv">${CONV.map((c, i) => opt(i, c[0], !i)).join('')}</select></td><td><button type="button" data-act="del">x</button></td></tr>`;
   }
   html += `<tr><td colspan="4">${items.length < KMAX[kind] ? `<button type="button" data-act="add">+ ${name.toLowerCase()}</button>` : ''}</td></tr></table>`;
@@ -354,7 +356,7 @@ function render() {
       (isH && (row.e || row.s) ? `<div class="small">Each line: ${fund.filter(x => x.pct).map(x => `${x.name} ${x.pct}%`).join(' · ')}</div>` : '') +
       (row.take ? `<div class="small">To shared: <span class="neg">${fmt(-row.take)}</span> /week</div>` : '') + `</div></div>`;
   }
-  $('#addPerson').hidden = people().length >= 2;
+  $('#addPerson').hidden = people().length >= 4;
   const track = $('#track'), idx = curIndex();
   track.innerHTML = html; track.scrollLeft = idx * track.clientWidth; updatePos();
 
@@ -432,7 +434,7 @@ $('#prev').onclick = () => go(-1);
 $('#next').onclick = () => go(1);
 $('#period').innerHTML = PERIODS.map((p, i) => opt(i, p[0])).join('');
 $('#period').onchange = e => { state.period = +e.target.value; render(); };
-$('#addPerson').onclick = () => { if (people().length >= 2) return alert('Max 2 people'); people().push({ id: uid(), init: '', pct: 0 }); render(); };
+$('#addPerson').onclick = () => { if (people().length < 4) { people().push({ id: uid(), init: '', pct: 0 }); render(); } };
 $('#shareBtn').onclick = async () => {
   const url = location.href, msg = $('#shareMsg');
   try { await navigator.share({ url }); msg.textContent = 'shared'; } catch { await navigator.clipboard.writeText(url); msg.textContent = 'link copied'; }
