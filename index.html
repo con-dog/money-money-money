@@ -247,7 +247,7 @@ const amtDecode = c => c & 512 ? (c & 511) * 10 : c;
 
 // ---------- state ----------
 const uid = () => Math.random().toString(36).slice(2, 7);
-const defaultState = () => ({ period: 0, split: 0, people: [{ id: uid(), init: '', pct: 0 }, { id: uid(), init: '', pct: 0 }], l: { i: [], e: [], s: [] } }); // l: lines {id, owner, tag, code}
+const defaultState = () => ({ period: 0, split: 0, people: [{ id: uid(), init: '', pct: 0 }], l: { i: [], e: [], s: [] } }); // l: lines {id, owner, tag, code}
 let state = defaultState();
 const people = () => state.people, owners = s => ['H', ...s.people.map(p => p.id)];
 const pidx = p => people().indexOf(p);
