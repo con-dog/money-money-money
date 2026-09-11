@@ -1,0 +1,7 @@
+{
+  "name": "money-money-money",
+  "private": true,
+  "type": "module",
+  "scripts": { "build": "node build.mjs" },
+  "devDependencies": { "@gfx/zopfli": "^1.0.15" }
+}

@@ -5,96 +5,80 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Household Budget</title>
 <style>
-  :root {
-    --bg: #fff; --fg: #111; --surface: #fff; --border: #999; --strong: #333; --muted: #555; --pos: #070; --neg: #b00; --neg-bg: #fde8e8; --btn: #efefef;
-    --dots: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Crect x='6' y='6' width='2' height='2' fill='%23c8c8c8'/%3E%3C/svg%3E");
-    --caret: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 0h10L5 6z' fill='%23111'/%3E%3C/svg%3E"); }
+  :root { --bg: #fff; --fg: #111; --surface: #fff; --border: #999; --strong: #333; --muted: #555; --pos: #070; --neg: #b00; --neg-bg: #fde8e8; --btn: #efefef; }
   html, body { height: 100%; margin: 0; }
-  body { font-family: monospace; color: var(--fg); background-color: var(--bg); background-image: var(--dots); }
-  /* opaque surfaces so the dot matrix stays in the background only */
-  .col, #forecast, #savsum, #incoming, .tabs button, #nav button, .arrow button, #down button, #up button, #pos, #bottom { background: var(--surface); }
-  table { background: var(--surface); }
-  /* brutalist: no radius anywhere, flat fills, heavy square borders, one typeface */
-  *, *::before, *::after { border-radius: 0 !important; box-shadow: none !important; }
-  button, input, select, textarea { font: inherit; color: var(--fg); background: var(--surface); border: 2px solid var(--strong); padding: 2px 6px; margin: 0; appearance: none; -webkit-appearance: none; }
+  body { font-family: monospace; color: var(--fg); background: var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Crect x='6' y='6' width='2' height='2' fill='%23c8c8c8'/%3E%3C/svg%3E"); }
+  .col, table, #incoming, #pos, #bottom, h1 span { background: var(--surface); }
+  *, ::before, ::after { border-radius: 0 !important; box-shadow: none !important; }
+  button, input, select { font: inherit; color: var(--fg); background: var(--surface); border: 2px solid var(--strong); padding: 2px 6px; margin: 0; appearance: none; }
   button { background: var(--btn); cursor: pointer; text-transform: uppercase; }
-  button:active { background: var(--strong); color: var(--bg); }
-  button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--fg); outline-offset: 0; }
-  input[type=number] { -moz-appearance: textfield; }
-  input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  button:active, .tabs .on { background: var(--strong); color: var(--bg); border-color: var(--strong); }
+  :focus-visible { outline: 2px solid var(--fg); outline-offset: 0; }
+  ::-webkit-inner-spin-button { -webkit-appearance: none; }
   input:disabled { background: var(--btn); color: var(--muted); border-color: var(--border); }
-  select { padding-right: 16px; background-repeat: no-repeat; background-position: right 3px center; background-size: 10px 6px; background-image: var(--caret); }
-  /* open dropdown list, where the browser lets the page style it (Chrome base-select); others keep the native list */
+  select { max-width: 100%; padding-right: 16px; background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 0h10L5 6z'/%3E%3C/svg%3E") right 3px center/10px 6px no-repeat; }
   select, ::picker(select) { appearance: base-select; }
   ::picker(select) { border: 2px solid var(--strong); background: var(--surface); color: var(--fg); padding: 0; }
-  select option { padding: 2px 6px; }
-  select option:checked { background: var(--strong); color: var(--bg); }
-  select option:hover { background: var(--btn); }
-  select optgroup { font-weight: bold; }
+  option { padding: 2px 6px; }
+  option:checked { background: var(--strong); color: var(--bg); }
+  option:hover { background: var(--btn); }
+  optgroup { font-weight: bold; }
   select::picker-icon { display: none; }
   input[type=radio] { width: 14px; height: 14px; padding: 0; vertical-align: middle; display: inline-grid; place-content: center; }
   input[type=radio]::before { content: ''; width: 6px; height: 6px; background: var(--fg); transform: scale(0); }
   input[type=radio]:checked::before { transform: scale(1); }
-  #pos { display: table; margin: 4px auto 0; padding: 2px 8px; }
-  #bottom { display: inline-block; align-self: flex-start; padding: 2px 8px; margin-top: 8px; }
   main { height: 100dvh; overflow-y: auto; scroll-snap-type: y mandatory; }
   .page { height: 100dvh; box-sizing: border-box; scroll-snap-align: start; max-width: 800px; margin: 0 auto; padding: 8px; display: flex; flex-direction: column; }
-  .arrow, #down, #up { text-align: center; padding: 4px 0; }
-  .arrow button, #down button, #up button { font-size: 1.4em; padding: 2px 30px; }
-  table { border-collapse: collapse; margin-bottom: 8px; width: 100%; table-layout: fixed; }
-  th.w-amt { width: 66px; } th.w-conv { width: 64px; } th.w-del { width: 34px; } th.w-pct { width: 64px; }
-  th { white-space: nowrap; }
-  .sheet { overflow-x: auto; min-width: 0; }
-  td select, td input { width: 100%; box-sizing: border-box; }
-  .sheet { flex: 1; min-height: 0; overflow-y: auto; }
+  h1 { text-align: center; font-size: 1.3em; letter-spacing: 0.2em; margin: 4px 0 8px; padding-bottom: 6px; border-bottom: 3px solid var(--strong); }
+  h1 span { padding: 2px 10px; }
+  h3 { margin: 4px 0; }
+  .arrow { text-align: center; padding: 4px 0; }
+  .arrow button { font-size: 1.4em; padding: 2px 30px; }
+  #nav { display: flex; justify-content: space-between; margin: 6px 0; }
+  #pos { display: table; margin: 4px auto 0; padding: 2px 8px; }
+  #bottom { display: inline-block; align-self: flex-start; padding: 2px 8px; margin-top: 8px; }
+  #track { flex: 1; min-height: 0; display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 8px; scrollbar-width: none; }
+  #track::-webkit-scrollbar { display: none; }
+  .col { flex: 0 0 100%; min-width: 0; min-height: 0; display: flex; flex-direction: column; scroll-snap-align: start; box-sizing: border-box; border: 3px solid var(--strong); padding: 6px; }
+  .tabs { display: flex; gap: 4px; margin: 6px 0; }
+  .tabs button { flex: 1; padding: 4px; }
+  .sheet { flex: 1; min-height: 0; min-width: 0; overflow: auto; }
   .summary { border-top: 1px solid var(--border); padding-top: 4px; }
-  .splitopts { display: grid; grid-template-columns: auto auto 1fr; column-gap: 8px; row-gap: 4px; align-items: center; margin: 4px 0 8px; }
-  .splitopts label { margin: 0; }
-  th.sortable { cursor: pointer; user-select: none; }
-  .tagcell { display: flex; align-items: center; gap: 4px; }
-  .drag { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; color: var(--muted); padding: 0 2px; flex: none; }
-  .drag.off { opacity: 0.35; cursor: default; }
-  tr.dragging { opacity: 0.4; }
-  .gi { font-size: 1.25em; line-height: 1; color: var(--fg); width: 1.3em; text-align: center; flex: none; }
-  .tagcell select { flex: 1; min-width: 0; }
+  table { border-collapse: collapse; margin-bottom: 8px; width: 100%; table-layout: fixed; }
   td, th { border: 1px solid var(--border); padding: 2px 4px; text-align: left; }
-  th { border-bottom: 2px solid var(--strong); }
-  select { max-width: 100%; }
+  th { border-bottom: 2px solid var(--strong); white-space: nowrap; }
+  .w-amt { width: 66px; } .w-conv { width: 64px; } .w-del { width: 34px; }
+  td select, td input { width: 100%; box-sizing: border-box; }
+  .sortable { cursor: pointer; user-select: none; }
+  .splitopts { display: grid; grid-template-columns: auto auto 1fr; gap: 4px 8px; align-items: center; margin: 4px 0 8px; }
+  .tagcell { display: flex; align-items: center; gap: 4px; }
+  .tagcell select { flex: 1; min-width: 0; }
+  .drag { cursor: grab; touch-action: none; user-select: none; color: var(--muted); padding: 0 2px; }
+  .drag.off { opacity: 0.35; cursor: default; }
+  .dragging { opacity: 0.4; }
+  .gi { font-size: 1.25em; line-height: 1; width: 1.3em; text-align: center; }
+  .gi, .drag { flex: none; }
+  .neg { color: var(--neg); } .pos { color: var(--pos); }
+  .red td { background: var(--neg-bg); }
+  .total { font-weight: bold; }
+  .snapped { outline: 2px solid var(--pos); }
+  .small { font-size: 0.85em; color: var(--muted); }
+  #incoming { border: 2px solid var(--neg); padding: 6px; margin: 8px 0; }
+  #share { text-align: center; width: fit-content; align-self: center; margin: auto; padding: 12px; border: 3px solid var(--strong); background: #fff; }
+  #share button { font-size: 1.2em; padding: 6px 24px; }
+  #qr svg { display: block; margin: 0 auto; max-width: 90vw; max-height: 60vh; height: auto; }
+  #savsum { margin-top: 12px; width: auto; min-width: 50%; }
   @media (pointer: coarse) {
-    button[data-act=del], #nav button, .arrow button, #down button, #up button, #addPerson { min-width: 36px; min-height: 36px; }
+    [data-act=del], #nav button, .arrow button { min-width: 36px; min-height: 36px; }
     .drag { min-width: 28px; min-height: 36px; display: inline-flex; align-items: center; justify-content: center; }
     .tabs button { min-height: 36px; }
     td input, td select { min-height: 32px; }
   }
   @media (max-width: 360px) {
-    .page { padding: 4px; }
-    body { font-size: 12px; }
-    th.w-amt { width: 58px; } th.w-conv { width: 58px; } th.w-del { width: 28px; } th.w-pct { width: 52px; }
+    .page { padding: 4px; } body { font-size: 12px; } .col { padding: 4px; }
+    .w-amt, .w-conv { width: 58px; } .w-del { width: 28px; }
     td, th { padding: 1px 2px; }
-    .col { padding: 4px; }
   }
-  .neg { color: var(--neg); }
-  .pos { color: var(--pos); }
-  tr.red td { background: var(--neg-bg); }
-  tr.total { font-weight: bold; }
-  input.snapped { outline: 2px solid var(--pos); }
-  .small { font-size: 0.85em; color: var(--muted); }
-  h3 { margin: 4px 0; }
-  h1 { text-align: center; font-size: 1.3em; letter-spacing: 0.2em; margin: 4px 0 8px; padding-bottom: 6px; border-bottom: 3px solid var(--strong); }
-  h1 span { background: var(--surface); padding: 2px 10px; }
-  #share { text-align: center; width: fit-content; align-self: center; padding: 12px; border: 3px solid var(--strong); }
-  #savsum { margin-top: 12px; width: auto; min-width: 50%; }
-  #qr svg { max-width: 90vw; max-height: 60vh; height: auto; }
-  #share button { font-size: 1.2em; padding: 6px 24px; }
-  #qr svg { display: block; margin: 0 auto; }
-  #incoming { border: 2px solid var(--neg); padding: 6px; margin: 8px 0; }
-  #track { flex: 1; min-height: 0; display: flex; align-items: stretch; overflow-x: auto; scroll-snap-type: x mandatory; gap: 8px; scrollbar-width: none; }
-  #track::-webkit-scrollbar { display: none; }
-  .col { flex: 0 0 100%; min-width: 0; min-height: 0; display: flex; flex-direction: column; scroll-snap-align: start; box-sizing: border-box; border: 3px solid var(--strong); padding: 6px; }
-  .tabs { display: flex; gap: 4px; margin: 6px 0; }
-  .tabs button { flex: 1; padding: 4px; }
-  .tabs button.on { background: var(--strong); color: var(--bg); border-color: var(--strong); }
-  #nav { display: flex; justify-content: space-between; align-items: center; margin: 6px 0; }
 </style>
 </head>
 <body>
@@ -111,11 +95,11 @@
 </div>
 <div id="track"></div>
 <div id="pos"></div>
-<div id="down"><button type="button" id="downBtn" title="forecast">&darr;</button></div>
+<div class="arrow"><button type="button" data-go="#page2" title="forecast">&darr;</button></div>
 
 </section>
 <section class="page" id="page2">
-<div id="up"><button type="button" id="upBtn" title="entries">&uarr;</button></div>
+<div class="arrow"><button type="button" data-go="#page1" title="entries">&uarr;</button></div>
 <h1><span>FORECAST</span></h1>
 
 <div id="bottom">
@@ -125,14 +109,14 @@
 
 <table id="forecast"></table>
 <table id="savsum" hidden></table>
-<div id="down2" class="arrow" style="margin-top:auto"><button type="button" id="downBtn2" title="share">&darr;</button></div>
+<div class="arrow" style="margin-top:auto"><button type="button" data-go="#page3" title="share">&darr;</button></div>
 
 </section>
 <section class="page" id="page3">
-<div id="up2" class="arrow"><button type="button" id="upBtn2" title="forecast">&uarr;</button></div>
+<div class="arrow"><button type="button" data-go="#page2" title="forecast">&uarr;</button></div>
 <h1><span>SHARE</span></h1>
 
-<div id="share" style="margin:auto">
+<div id="share">
   <div id="qr"></div>
   <button type="button" id="shareBtn">SHARE</button>
   <div id="shareMsg" class="small">&nbsp;</div>
@@ -141,445 +125,402 @@
 </section>
 </main>
 <script>
-/* qrcode-generator 1.4.4 by Kazuhiko Arase, MIT licence — https://github.com/kazuhikoarase/qrcode-generator
-   Trimmed to what this page uses: Numeric/Alphanumeric/Byte modes, error correction level L, SVG output. */
-var qrcode=function(){var t=function(t,r){var e=t,n=c[r],o=null,a=0,u=null,i=[],f={},g=function(t,r){o=function(t){for(var r=new Array(t),e=0;e<t;e+=1){r[e]=new Array(t);for(var n=0;n<t;n+=1)r[e][n]=null}return r}(a=4*e+17),l(0,0),l(a-7,0),l(0,a-7),s(),h(),d(t,r),e>=7&&v(t),null==u&&(u=w(e,n,i)),p(u,r)},l=function(t,r){for(var e=-1;e<=7;e+=1)if(!(t+e<=-1||a<=t+e))for(var n=-1;n<=7;n+=1)r+n<=-1||a<=r+n||(o[t+e][r+n]=0<=e&&e<=6&&(0==n||6==n)||0<=n&&n<=6&&(0==e||6==e)||2<=e&&e<=4&&2<=n&&n<=4)},h=function(){for(var t=8;t<a-8;t+=1)null==o[t][6]&&(o[t][6]=t%2==0);for(var r=8;r<a-8;r+=1)null==o[6][r]&&(o[6][r]=r%2==0)},s=function(){for(var t=A.getPatternPosition(e),r=0;r<t.length;r+=1)for(var n=0;n<t.length;n+=1){var a=t[r],u=t[n];if(null==o[a][u])for(var i=-2;i<=2;i+=1)for(var f=-2;f<=2;f+=1)o[a+i][u+f]=-2==i||2==i||-2==f||2==f||0==i&&0==f}},v=function(t){for(var r=A.getBCHTypeNumber(e),n=0;n<18;n+=1){var u=!t&&1==(r>>n&1);o[Math.floor(n/3)][n%3+a-8-3]=u}for(n=0;n<18;n+=1){u=!t&&1==(r>>n&1);o[n%3+a-8-3][Math.floor(n/3)]=u}},d=function(t,r){for(var e=n<<3|r,u=A.getBCHTypeInfo(e),i=0;i<15;i+=1){var f=!t&&1==(u>>i&1);i<6?o[i][8]=f:i<8?o[i+1][8]=f:o[a-15+i][8]=f}for(i=0;i<15;i+=1){f=!t&&1==(u>>i&1);i<8?o[8][a-i-1]=f:i<9?o[8][15-i-1+1]=f:o[8][15-i-1]=f}o[a-8][8]=!t},p=function(t,r){for(var e=-1,n=a-1,u=7,i=0,f=A.getMaskFunction(r),g=a-1;g>0;g-=2)for(6==g&&(g-=1);;){for(var c=0;c<2;c+=1)if(null==o[n][g-c]){var l=!1;i<t.length&&(l=1==(t[i]>>>u&1)),f(n,g-c)&&(l=!l),o[n][g-c]=l,-1==(u-=1)&&(i+=1,u=7)}if((n+=e)<0||a<=n){n-=e,e=-e;break}}},w=function(t,r,e){for(var n=m.getRSBlocks(t,r),o=B(),a=0;a<e.length;a+=1){var u=e[a];o.put(u.getMode(),4),o.put(u.getLength(),A.getLengthInBits(u.getMode(),t)),u.write(o)}var i=0;for(a=0;a<n.length;a+=1)i+=n[a].dataCount;if(o.getLengthInBits()>8*i)throw"code length overflow. ("+o.getLengthInBits()+">"+8*i+")";for(o.getLengthInBits()+4<=8*i&&o.put(0,4);o.getLengthInBits()%8!=0;)o.putBit(!1);for(;!(o.getLengthInBits()>=8*i||(o.put(236,8),o.getLengthInBits()>=8*i));)o.put(17,8);return function(t,r){for(var e=0,n=0,o=0,a=new Array(r.length),u=new Array(r.length),i=0;i<r.length;i+=1){var f=r[i].dataCount,g=r[i].totalCount-f;n=Math.max(n,f),o=Math.max(o,g),a[i]=new Array(f);for(var c=0;c<a[i].length;c+=1)a[i][c]=255&t.getBuffer()[c+e];e+=f;var l=A.getErrorCorrectPolynomial(g),h=y(a[i],l.getLength()-1).mod(l);for(u[i]=new Array(l.getLength()-1),c=0;c<u[i].length;c+=1){var s=c+h.getLength()-u[i].length;u[i][c]=s>=0?h.getAt(s):0}}var v=0;for(c=0;c<r.length;c+=1)v+=r[c].totalCount;var d=new Array(v),p=0;for(c=0;c<n;c+=1)for(i=0;i<r.length;i+=1)c<a[i].length&&(d[p]=a[i][c],p+=1);for(c=0;c<o;c+=1)for(i=0;i<r.length;i+=1)c<u[i].length&&(d[p]=u[i][c],p+=1);return d}(o,n)};return f.addData=function(t,r){var e=null;switch(r=r||"Byte"){case"Numeric":e=M(t);break;case"Alphanumeric":e=x(t);break;case"Byte":e=C(t);break;default:throw"mode:"+r}i.push(e),u=null},f.isDark=function(t,r){if(t<0||a<=t||r<0||a<=r)throw t+","+r;return o[t][r]},f.getModuleCount=function(){return a},f.make=function(){if(e<1){for(var t=1;t<40;t++){for(var r=m.getRSBlocks(t,n),o=B(),a=0;a<i.length;a++){var u=i[a];o.put(u.getMode(),4),o.put(u.getLength(),A.getLengthInBits(u.getMode(),t)),u.write(o)}var c=0;for(a=0;a<r.length;a++)c+=r[a].dataCount;if(o.getLengthInBits()<=8*c)break}e=t}g(!1,function(){for(var t=0,r=0,e=0;e<8;e+=1){g(!0,e);var n=A.getLostPoint(f);(0==e||t>n)&&(t=n,r=e)}return r}())},f.createSvgTag=function(t,r,e,n){var o={};"object"==typeof arguments[0]&&(t=(o=arguments[0]).cellSize,r=o.margin,e=o.alt,n=o.title),t=t||2,r=void 0===r?4*t:r,(e="string"==typeof e?{text:e}:e||{}).text=e.text||null,e.id=e.text?e.id||"qrcode-description":null,(n="string"==typeof n?{text:n}:n||{}).text=n.text||null,n.id=n.text?n.id||"qrcode-title":null;var a,u,i,g,c=f.getModuleCount()*t+2*r,l="";for(g="l"+t+",0 0,"+t+" -"+t+",0 0,-"+t+"z ",l+='<svg version="1.1" xmlns="http://www.w3.org/2000/svg"',l+=o.scalable?"":' width="'+c+'px" height="'+c+'px"',l+=' viewBox="0 0 '+c+" "+c+'" ',l+=' preserveAspectRatio="xMinYMin meet"',l+=n.text||e.text?' role="img" aria-labelledby="'+escapeXml([n.id,e.id].join(" ").trim())+'"':"",l+=">",l+=n.text?'<title id="'+escapeXml(n.id)+'">'+escapeXml(n.text)+"</title>":"",l+=e.text?'<description id="'+escapeXml(e.id)+'">'+escapeXml(e.text)+"</description>":"",l+='<rect width="100%" height="100%" fill="white" cx="0" cy="0"/>',l+='<path d="',u=0;u<f.getModuleCount();u+=1)for(i=u*t+r,a=0;a<f.getModuleCount();a+=1)f.isDark(u,a)&&(l+="M"+(a*t+r)+","+i+g);return l+='" stroke="transparent" fill="black"/>',l+="</svg>"},f};t.stringToBytes=(t.stringToBytesFuncs={default:function(t){for(var r=[],e=0;e<t.length;e+=1){var n=t.charCodeAt(e);r.push(255&n)}return r}}).default;var r,e,n,o,a,u=1,i=2,f=4,g=8,c={L:1,M:0,Q:3,H:2},l=0,h=1,s=2,v=3,d=4,p=5,w=6,k=7,A=(r=[[],[6,18],[6,22],[6,26],[6,30],[6,34],[6,22,38],[6,24,42],[6,26,46],[6,28,50],[6,30,54],[6,32,58],[6,34,62],[6,26,46,66],[6,26,48,70],[6,26,50,74],[6,30,54,78],[6,30,56,82],[6,30,58,86],[6,34,62,90],[6,28,50,72,94],[6,26,50,74,98],[6,30,54,78,102],[6,28,54,80,106],[6,32,58,84,110],[6,30,58,86,114],[6,34,62,90,118],[6,26,50,74,98,122],[6,30,54,78,102,126],[6,26,52,78,104,130],[6,30,56,82,108,134],[6,34,60,86,112,138],[6,30,58,86,114,142],[6,34,62,90,118,146],[6,30,54,78,102,126,150],[6,24,50,76,102,128,154],[6,28,54,80,106,132,158],[6,32,58,84,110,136,162],[6,26,54,82,110,138,166],[6,30,58,86,114,142,170]],e=1335,n=7973,a=function(t){for(var r=0;0!=t;)r+=1,t>>>=1;return r},(o={}).getBCHTypeInfo=function(t){for(var r=t<<10;a(r)-a(e)>=0;)r^=e<<a(r)-a(e);return 21522^(t<<10|r)},o.getBCHTypeNumber=function(t){for(var r=t<<12;a(r)-a(n)>=0;)r^=n<<a(r)-a(n);return t<<12|r},o.getPatternPosition=function(t){return r[t-1]},o.getMaskFunction=function(t){switch(t){case l:return function(t,r){return(t+r)%2==0};case h:return function(t,r){return t%2==0};case s:return function(t,r){return r%3==0};case v:return function(t,r){return(t+r)%3==0};case d:return function(t,r){return(Math.floor(t/2)+Math.floor(r/3))%2==0};case p:return function(t,r){return t*r%2+t*r%3==0};case w:return function(t,r){return(t*r%2+t*r%3)%2==0};case k:return function(t,r){return(t*r%3+(t+r)%2)%2==0};default:throw"bad maskPattern:"+t}},o.getErrorCorrectPolynomial=function(t){for(var r=y([1],0),e=0;e<t;e+=1)r=r.multiply(y([1,L.gexp(e)],0));return r},o.getLengthInBits=function(t,r){if(1<=r&&r<10)switch(t){case u:return 10;case i:return 9;case f:case g:return 8;default:throw"mode:"+t}else if(r<27)switch(t){case u:return 12;case i:return 11;case f:return 16;case g:return 10;default:throw"mode:"+t}else{if(!(r<41))throw"type:"+r;switch(t){case u:return 14;case i:return 13;case f:return 16;case g:return 12;default:throw"mode:"+t}}},o.getLostPoint=function(t){for(var r=t.getModuleCount(),e=0,n=0;n<r;n+=1)for(var o=0;o<r;o+=1){for(var a=0,u=t.isDark(n,o),i=-1;i<=1;i+=1)if(!(n+i<0||r<=n+i))for(var f=-1;f<=1;f+=1)o+f<0||r<=o+f||0==i&&0==f||u==t.isDark(n+i,o+f)&&(a+=1);a>5&&(e+=3+a-5)}for(n=0;n<r-1;n+=1)for(o=0;o<r-1;o+=1){var g=0;t.isDark(n,o)&&(g+=1),t.isDark(n+1,o)&&(g+=1),t.isDark(n,o+1)&&(g+=1),t.isDark(n+1,o+1)&&(g+=1),0!=g&&4!=g||(e+=3)}for(n=0;n<r;n+=1)for(o=0;o<r-6;o+=1)t.isDark(n,o)&&!t.isDark(n,o+1)&&t.isDark(n,o+2)&&t.isDark(n,o+3)&&t.isDark(n,o+4)&&!t.isDark(n,o+5)&&t.isDark(n,o+6)&&(e+=40);for(o=0;o<r;o+=1)for(n=0;n<r-6;n+=1)t.isDark(n,o)&&!t.isDark(n+1,o)&&t.isDark(n+2,o)&&t.isDark(n+3,o)&&t.isDark(n+4,o)&&!t.isDark(n+5,o)&&t.isDark(n+6,o)&&(e+=40);var c=0;for(o=0;o<r;o+=1)for(n=0;n<r;n+=1)t.isDark(n,o)&&(c+=1);return e+=Math.abs(100*c/r/r-50)/5*10},o),L=function(){for(var t=new Array(256),r=new Array(256),e=0;e<8;e+=1)t[e]=1<<e;for(e=8;e<256;e+=1)t[e]=t[e-4]^t[e-5]^t[e-6]^t[e-8];for(e=0;e<255;e+=1)r[t[e]]=e;var n={glog:function(t){if(t<1)throw"glog("+t+")";return r[t]},gexp:function(r){for(;r<0;)r+=255;for(;r>=256;)r-=255;return t[r]}};return n}();function y(t,r){if(void 0===t.length)throw t.length+"/"+r;var e=function(){for(var e=0;e<t.length&&0==t[e];)e+=1;for(var n=new Array(t.length-e+r),o=0;o<t.length-e;o+=1)n[o]=t[o+e];return n}(),n={getAt:function(t){return e[t]},getLength:function(){return e.length},multiply:function(t){for(var r=new Array(n.getLength()+t.getLength()-1),e=0;e<n.getLength();e+=1)for(var o=0;o<t.getLength();o+=1)r[e+o]^=L.gexp(L.glog(n.getAt(e))+L.glog(t.getAt(o)));return y(r,0)},mod:function(t){if(n.getLength()-t.getLength()<0)return n;for(var r=L.glog(n.getAt(0))-L.glog(t.getAt(0)),e=new Array(n.getLength()),o=0;o<n.getLength();o+=1)e[o]=n.getAt(o);for(o=0;o<t.getLength();o+=1)e[o]^=L.gexp(L.glog(t.getAt(o))+r);return y(e,0).mod(t)}};return n}var m=function(){var t=[[1,26,19],[1,44,34],[1,70,55],[1,100,80],[1,134,108],[2,86,68],[2,98,78],[2,121,97],[2,146,116],[2,86,68,2,87,69],[4,101,81],[2,116,92,2,117,93],[4,133,107],[3,145,115,1,146,116],[5,109,87,1,110,88],[5,122,98,1,123,99],[1,135,107,5,136,108],[5,150,120,1,151,121],[3,141,113,4,142,114],[3,135,107,5,136,108],[4,144,116,4,145,117],[2,139,111,7,140,112],[4,151,121,5,152,122],[6,147,117,4,148,118],[8,132,106,4,133,107],[10,142,114,2,143,115],[8,152,122,4,153,123],[3,147,117,10,148,118],[7,146,116,7,147,117],[5,145,115,10,146,116],[13,145,115,3,146,116],[17,145,115],[17,145,115,1,146,116],[13,145,115,6,146,116],[12,151,121,7,152,122],[6,151,121,14,152,122],[17,152,122,4,153,123],[4,152,122,18,153,123],[20,147,117,4,148,118],[19,148,118,6,149,119]],r=function(t,r){var e={};return e.totalCount=t,e.dataCount=r,e},e={};return e.getRSBlocks=function(e,n){var o=function(r,e){if(e!==c.L)throw"only L supported";return t[r-1]}(e,n);if(void 0===o)throw"bad rs block @ typeNumber:"+e+"/errorCorrectionLevel:"+n;for(var a=o.length/3,u=[],i=0;i<a;i+=1)for(var f=o[3*i+0],g=o[3*i+1],l=o[3*i+2],h=0;h<f;h+=1)u.push(r(g,l));return u},e}(),B=function(){var t=[],r=0,e={getBuffer:function(){return t},getAt:function(r){var e=Math.floor(r/8);return 1==(t[e]>>>7-r%8&1)},put:function(t,r){for(var n=0;n<r;n+=1)e.putBit(1==(t>>>r-n-1&1))},getLengthInBits:function(){return r},putBit:function(e){var n=Math.floor(r/8);t.length<=n&&t.push(0),e&&(t[n]|=128>>>r%8),r+=1}};return e},M=function(t){var r=u,e=t,n={getMode:function(){return r},getLength:function(t){return e.length},write:function(t){for(var r=e,n=0;n+2<r.length;)t.put(o(r.substring(n,n+3)),10),n+=3;n<r.length&&(r.length-n==1?t.put(o(r.substring(n,n+1)),4):r.length-n==2&&t.put(o(r.substring(n,n+2)),7))}},o=function(t){for(var r=0,e=0;e<t.length;e+=1)r=10*r+a(t.charAt(e));return r},a=function(t){if("0"<=t&&t<="9")return t.charCodeAt(0)-"0".charCodeAt(0);throw"illegal char :"+t};return n},x=function(t){var r=i,e=t,n={getMode:function(){return r},getLength:function(t){return e.length},write:function(t){for(var r=e,n=0;n+1<r.length;)t.put(45*o(r.charAt(n))+o(r.charAt(n+1)),11),n+=2;n<r.length&&t.put(o(r.charAt(n)),6)}},o=function(t){if("0"<=t&&t<="9")return t.charCodeAt(0)-"0".charCodeAt(0);if("A"<=t&&t<="Z")return t.charCodeAt(0)-"A".charCodeAt(0)+10;switch(t){case" ":return 36;case"$":return 37;case"%":return 38;case"*":return 39;case"+":return 40;case"-":return 41;case".":return 42;case"/":return 43;case":":return 44;default:throw"illegal char :"+t}};return n},C=function(r){var e=f,n=t.stringToBytes(r),o={getMode:function(){return e},getLength:function(t){return n.length},write:function(t){for(var r=0;r<n.length;r+=1)t.put(n[r],8)}};return o};return t}();window.qrcode=qrcode;
+/* Compact QR encoder: a port of qrcode-generator 1.4.4 by Kazuhiko Arase (MIT). Byte + Alphanumeric + Numeric
+   modes, error correction level L, automatic version and mask, SVG output. Produces the same modules as the original. */
+const qrcode = () => {
+  const AP = [[],[6,18],[6,22],[6,26],[6,30],[6,34],[6,22,38],[6,24,42],[6,26,46],[6,28,50],[6,30,54],[6,32,58],[6,34,62],[6,26,46,66],[6,26,48,70],[6,26,50,74],[6,30,54,78],[6,30,56,82],[6,30,58,86],[6,34,62,90],[6,28,50,72,94],[6,26,50,74,98],[6,30,54,78,102],[6,28,54,80,106],[6,32,58,84,110],[6,30,58,86,114],[6,34,62,90,118],[6,26,50,74,98,122],[6,30,54,78,102,126],[6,26,52,78,104,130],[6,30,56,82,108,134],[6,34,60,86,112,138],[6,30,58,86,114,142],[6,34,62,90,118,146],[6,30,54,78,102,126,150],[6,24,50,76,102,128,154],[6,28,54,80,106,132,158],[6,32,58,84,110,136,162],[6,26,54,82,110,138,166],[6,30,58,86,114,142,170]];
+  // level L RS blocks per version: [count,total,data, count,total,data]
+  const RS = [[1,26,19],[1,44,34],[1,70,55],[1,100,80],[1,134,108],[2,86,68],[2,98,78],[2,121,97],[2,146,116],[2,86,68,2,87,69],[4,101,81],[2,116,92,2,117,93],[4,133,107],[3,145,115,1,146,116],[5,109,87,1,110,88],[5,122,98,1,123,99],[1,135,107,5,136,108],[5,150,120,1,151,121],[3,141,113,4,142,114],[3,135,107,5,136,108],[4,144,116,4,145,117],[2,139,111,7,140,112],[4,151,121,5,152,122],[6,147,117,4,148,118],[8,132,106,4,133,107],[10,142,114,2,143,115],[8,152,122,4,153,123],[3,147,117,10,148,118],[7,146,116,7,147,117],[5,145,115,10,146,116],[13,145,115,3,146,116],[17,145,115],[17,145,115,1,146,116],[13,145,115,6,146,116],[12,151,121,7,152,122],[6,151,121,14,152,122],[17,152,122,4,153,123],[4,152,122,18,153,123],[20,147,117,4,148,118],[19,148,118,6,149,119]];
+  const EXP = new Uint8Array(512), LOG = new Uint8Array(256);
+  for (let i = 0, x = 1; i < 255; i++) { EXP[i] = x; LOG[x] = i; x <<= 1; if (x & 256) x ^= 285; }
+  for (let i = 255; i < 512; i++) EXP[i] = EXP[i - 255];
+  const ALNUM = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:';
+  const MODE = { Numeric: 1, Alphanumeric: 2, Byte: 4 };
+  const segs = [];
+  let N = 0, M = null;
+
+  const bitlen = x => { let n = 0; while (x) { n++; x >>>= 1; } return n; };
+  const bch = (d, g, s) => { let v = d << s; while (bitlen(v) >= bitlen(g)) v ^= g << (bitlen(v) - bitlen(g)); return (d << s) | v; };
+  const lenBits = (m, v) => [[10, 9, 8], [12, 11, 16], [14, 13, 16]][v < 10 ? 0 : v < 27 ? 1 : 2][m === 1 ? 0 : m === 2 ? 1 : 2];
+  const masks = [(i, j) => (i + j) % 2 === 0, (i, j) => i % 2 === 0, (i, j) => j % 3 === 0, (i, j) => (i + j) % 3 === 0,
+    (i, j) => ((i >> 1) + Math.floor(j / 3)) % 2 === 0, (i, j) => (i * j) % 2 + (i * j) % 3 === 0,
+    (i, j) => ((i * j) % 2 + (i * j) % 3) % 2 === 0, (i, j) => ((i * j) % 3 + (i + j) % 2) % 2 === 0];
+
+  // bit writer
+  const bits = (v) => {
+    const buf = [], put = (x, n) => { for (let i = n - 1; i >= 0; i--) buf.push((x >>> i) & 1); };
+    for (const [data, mode] of segs) {
+      const m = MODE[mode]; put(m, 4); put(data.length, lenBits(m, v));
+      if (m === 4) for (const ch of data) put(ch.charCodeAt(0) & 255, 8);
+      else if (m === 2) { let i = 0; for (; i + 1 < data.length; i += 2) put(ALNUM.indexOf(data[i]) * 45 + ALNUM.indexOf(data[i + 1]), 11); if (i < data.length) put(ALNUM.indexOf(data[i]), 6); }
+      else { let i = 0; for (; i + 2 < data.length; i += 3) put(+data.substr(i, 3), 10); const r = data.length - i; if (r === 1) put(+data.substr(i), 4); else if (r === 2) put(+data.substr(i), 7); }
+    }
+    return buf;
+  };
+  const blocks = v => { const t = RS[v - 1], out = []; for (let i = 0; i < t.length; i += 3) for (let k = 0; k < t[i]; k++) out.push([t[i + 1], t[i + 2]]); return out; };
+
+  // data + error correction bytes, interleaved
+  const codewords = (v) => {
+    const bl = blocks(v), total = bl.reduce((s, b) => s + b[1], 0), buf = bits(v);
+    if (buf.length > total * 8) throw 'overflow';
+    if (buf.length + 4 <= total * 8) buf.push(0, 0, 0, 0);
+    while (buf.length % 8) buf.push(0);
+    const bytes = []; for (let i = 0; i < buf.length; i += 8) bytes.push(parseInt(buf.slice(i, i + 8).join(''), 2));
+    for (let p = 0; bytes.length < total;) bytes.push(p++ % 2 ? 17 : 236);
+    let off = 0, maxD = 0, maxE = 0; const dc = [], ec = [];
+    for (const [tot, dat] of bl) {
+      const e = tot - dat, d = bytes.slice(off, off + dat); off += dat; maxD = Math.max(maxD, dat); maxE = Math.max(maxE, e);
+      let g = [1]; for (let i = 0; i < e; i++) { const n = new Array(g.length + 1).fill(0); for (let k = 0; k < g.length; k++) { n[k] ^= g[k]; n[k + 1] ^= EXP[LOG[g[k]] + i]; } g = n; }
+      const r = d.concat(new Array(e).fill(0));
+      for (let i = 0; i < dat; i++) { const c = r[i]; if (c) for (let k = 0; k < g.length; k++) r[i + k] ^= EXP[LOG[g[k]] + LOG[c]]; }
+      dc.push(d); ec.push(r.slice(dat));
+    }
+    const out = [];
+    for (let i = 0; i < maxD; i++) for (const d of dc) if (i < d.length) out.push(d[i]);
+    for (let i = 0; i < maxE; i++) for (const e of ec) if (i < e.length) out.push(e[i]);
+    return out;
+  };
+
+  // build the module grid for version v with mask k; test=true leaves format/version bits light (for scoring)
+  const build = (v, data, k, test) => {
+    N = v * 4 + 17; M = Array.from({ length: N }, () => new Array(N).fill(null));
+    const probe = (r0, c0) => { for (let r = -1; r <= 7; r++) for (let c = -1; c <= 7; c++) { if (r0 + r < 0 || r0 + r >= N || c0 + c < 0 || c0 + c >= N) continue;
+      M[r0 + r][c0 + c] = (r >= 0 && r <= 6 && (c === 0 || c === 6)) || (c >= 0 && c <= 6 && (r === 0 || r === 6)) || (r >= 2 && r <= 4 && c >= 2 && c <= 4); } };
+    probe(0, 0); probe(N - 7, 0); probe(0, N - 7);
+    const ap = AP[v - 1];
+    for (const r of ap) for (const c of ap) if (M[r][c] === null) for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) M[r + i][c + j] = Math.abs(i) === 2 || Math.abs(j) === 2 || (i === 0 && j === 0);
+    for (let i = 8; i < N - 8; i++) { if (M[i][6] === null) M[i][6] = i % 2 === 0; if (M[6][i] === null) M[6][i] = i % 2 === 0; }
+    const info = bch((1 << 3) | k, 0x537, 10) ^ 0x5412;
+    for (let i = 0; i < 15; i++) {
+      const b = !test && ((info >> i) & 1) === 1;
+      M[i < 6 ? i : i < 8 ? i + 1 : N - 15 + i][8] = b;
+      M[8][i < 8 ? N - i - 1 : i < 9 ? 15 - i : 14 - i] = b;
+    }
+    M[N - 8][8] = !test;
+    if (v >= 7) { const vb = bch(v, 0x1f25, 12); for (let i = 0; i < 18; i++) { const b = !test && ((vb >> i) & 1) === 1; M[Math.floor(i / 3)][i % 3 + N - 11] = b; M[i % 3 + N - 11][Math.floor(i / 3)] = b; } }
+    let inc = -1, row = N - 1, bi = 7, by = 0;
+    for (let col = N - 1; col > 0; col -= 2) {
+      if (col === 6) col--;
+      for (;;) {
+        for (let c = 0; c < 2; c++) if (M[row][col - c] === null) {
+          let d = by < data.length && ((data[by] >>> bi) & 1) === 1;
+          if (masks[k](row, col - c)) d = !d;
+          M[row][col - c] = d; if (--bi < 0) { by++; bi = 7; }
+        }
+        row += inc; if (row < 0 || row >= N) { row -= inc; inc = -inc; break; }
+      }
+    }
+  };
+  const penalty = () => {
+    let p = 0, dark = 0;
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+      let same = 0; const d = M[r][c]; if (d) dark++;
+      for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { if ((!i && !j) || r + i < 0 || r + i >= N || c + j < 0 || c + j >= N) continue; if (M[r + i][c + j] === d) same++; }
+      if (same > 5) p += 3 + same - 5;
+      if (r < N - 1 && c < N - 1) { const n = M[r][c] + M[r + 1][c] + M[r][c + 1] + M[r + 1][c + 1]; if (n === 0 || n === 4) p += 3; }
+      if (c < N - 6 && M[r][c] && !M[r][c + 1] && M[r][c + 2] && M[r][c + 3] && M[r][c + 4] && !M[r][c + 5] && M[r][c + 6]) p += 40;
+      if (r < N - 6 && M[r][c] && !M[r + 1][c] && M[r + 2][c] && M[r + 3][c] && M[r + 4][c] && !M[r + 5][c] && M[r + 6][c]) p += 40;
+    }
+    return p + Math.abs(100 * dark / N / N - 50) / 5 * 10;
+  };
+
+  return {
+    addData: (data, mode) => segs.push([data, mode || 'Byte']),
+    make() {
+      let v = 1; for (; v < 40; v++) if (bits(v).length <= blocks(v).reduce((s, b) => s + b[1], 0) * 8) break;
+      const data = codewords(v); let best = 0, bp = Infinity;
+      for (let k = 0; k < 8; k++) { build(v, data, k, true); const p = penalty(); if (p < bp) { bp = p; best = k; } }
+      build(v, data, best, false);
+    },
+    getModuleCount: () => N,
+    isDark: (r, c) => M[r][c],
+    createSvgTag({ cellSize: s = 2, margin: m = s * 4 } = {}) {
+      const w = N * s + 2 * m; let d = '';
+      for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (M[r][c]) d += `M${c * s + m},${r * s + m}h${s}v${s}h-${s}z`;
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${w}" viewBox="0 0 ${w} ${w}"><rect width="100%" height="100%" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+    },
+  };
+};
 </script>
 <script>
-// ---------- constants ----------
 // ---- link format v1 (FROZEN) ----
 // Changing anything encode()/decode() writes or reads, or the order/meaning of any tag list, requires a new
 // VERSION and a decoder that still reads v1. Tag lists may only be appended to.
 const VERSION = 1;
 const PERIODS = [['Week', 7], ['Fortnight', 14], ['Month', 30.4375], ['Quarter', 91.3125], ['Half year', 182.625], ['Year', 365.25]];
-// entry conversion helpers only; everything is stored per week
-const CONV = [['/wk', 1], ['/fn', 2], ['/mo', 30.4375 / 7], ['/qtr', 91.3125 / 7], ['/yr', 365.25 / 7]];
-const MAX_PEOPLE = 8, MAX_INC = 15, MAX_EXP = 31, MAX_SAV = 15;
-// colour is assigned by position: person 1 is always Blue, person 2 Purple, ...
-const COLOURS = [['Blue', '#1e88e5'], ['Purple', '#8e24aa'], ['Green', '#43a047'], ['Orange', '#fb8c00'], ['Red', '#e53935'], ['Teal', '#00897b'], ['Pink', '#d81b60'], ['Yellow', '#fdd835']];
+const CONV = [['/wk', 1], ['/fn', 2], ['/mo', 30.4375 / 7], ['/qtr', 91.3125 / 7], ['/yr', 365.25 / 7]]; // entry helpers; everything is stored per week
+// line kinds: i income, e expense, s saving. Order matters for the link format.
+const KINDS = ['i', 'e', 's'], KMAX = { i: 15, e: 31, s: 15 }, KBITS = { i: 4, e: 5, s: 4 }, KNAME = { i: 'Income', e: 'Expense', s: 'Saving' };
+const COLOURS = 'Blue:#1e88e5,Purple:#8e24aa,Green:#43a047,Orange:#fb8c00,Red:#e53935,Teal:#00897b,Pink:#d81b60,Yellow:#fdd835'.split(',').map(x => x.split(':'));
+// tag lists as "Group:name,name;Group:name" -> [[group, name], ...]. Index 0 is always Other. Max 64 per list.
+const parseTags = s => s.split(';').flatMap(g => { const [grp, names] = g.split(':'); return names.split(',').map(n => [grp, n]); });
+const TAGS = {
+  i: parseTags('Other:Other,Other 2;Work:Salary,Wages,Bonus,Overtime,Side hustle,Freelance,Business;Passive:Rent received,Board received,Dividends,Interest;Other:Government payment,Child support,Pension,Scholarship,Gift,Sale of stuff'),
+  e: parseTags('Other:Other,Other 2,Buffer;Housing:Rent,Mortgage,Rates,Body corp,Home insurance,Contents insurance;Utilities:Electricity,Gas,Water,Internet,Mobile;Food:Groceries,Eating out,Coffee,Alcohol,Takeaway;Transport:Car loan,Car insurance,Car rego,Fuel,Car maintenance,Public transport,Parking;Health:Health insurance,Doctor,Dentist,Pharmacy,Gym,Sport;Lifestyle:Streaming,Subscriptions,AI tools,Hobbies,Dance classes,Clothes,Haircut,Personal care,Fun money;Family:Kids,Childcare,School,Pets,Vet,Gifts,Donations;Travel:Holidays,Flights,Travel insurance;Home:Furniture,Appliances,Repairs,Cleaning,Garden;Finance:Life insurance,Income protection,Credit card,Personal loan,Student loan,Tax,Fees,Investing,Savings transfer'),
+  s: parseTags('Other:Other,Other 2;Safety:Emergency fund,Debt payoff;Big:House deposit,Car,Wedding,Renovation,Investment;Fun:Holiday,Tech,Furniture,Hobby gear;Life:Education,Baby,Moving,Gift;Passive:Investing,Retirement,Term deposit'),
+};
+// monochrome glyph per group (U+FE0E forces text presentation)
+const ICON = { Other: '·', Work: '⚙︎', Passive: '%', Housing: '⌂', Utilities: '⚡︎', Food: '☕︎', Transport: '⛽︎', Health: '✚', Lifestyle: '♫', Family: '☺︎', Travel: '✈︎', Home: '⚒︎', Finance: '⚖︎', Safety: '☂︎', Big: '▲', Fun: '★', Life: '✿' };
 
-// amount per week, 10 bits: 1 scale bit (x1 or x10) + 9-bit mantissa. Exact to $1 up to $511, to $10 up to $5110.
+// amount per week, 10 bits: scale bit (x1 / x10) + 9-bit mantissa. Exact to $1 up to 511, to $10 up to 5110.
 const AMT_MAX = 5110;
-function amtEncode(weekly, roundUp) {
-  weekly = Math.min(AMT_MAX, Math.max(0, Number(weekly) || 0));
-  const r = v => roundUp ? Math.ceil(v - 1e-9) : Math.floor(v + 1e-9);
-  const m1 = r(weekly);
-  if (m1 <= 511) return m1;                       // scale 0
-  return 512 | Math.min(511, r(weekly / 10));     // scale 1
-}
-const amtDecode = c => (c & 512) ? (c & 511) * 10 : c;
-// tag 0 is always "Other". Max 64 per list (6 bits). [group, name]
-const INCOME_TAGS = [['Other', 'Other'], ['Other', 'Other 2'],
-  ['Work', 'Salary'], ['Work', 'Wages'], ['Work', 'Bonus'], ['Work', 'Overtime'], ['Work', 'Side hustle'], ['Work', 'Freelance'], ['Work', 'Business'],
-  ['Passive', 'Rent received'], ['Passive', 'Board received'], ['Passive', 'Dividends'], ['Passive', 'Interest'],
-  ['Other', 'Government payment'], ['Other', 'Child support'], ['Other', 'Pension'], ['Other', 'Scholarship'], ['Other', 'Gift'], ['Other', 'Sale of stuff']];
-const EXPENSE_TAGS = [['Other', 'Other'], ['Other', 'Other 2'], ['Other', 'Buffer'],
-  ['Housing', 'Rent'], ['Housing', 'Mortgage'], ['Housing', 'Rates'], ['Housing', 'Body corp'], ['Housing', 'Home insurance'], ['Housing', 'Contents insurance'],
-  ['Utilities', 'Electricity'], ['Utilities', 'Gas'], ['Utilities', 'Water'], ['Utilities', 'Internet'], ['Utilities', 'Mobile'],
-  ['Food', 'Groceries'], ['Food', 'Eating out'], ['Food', 'Coffee'], ['Food', 'Alcohol'], ['Food', 'Takeaway'],
-  ['Transport', 'Car loan'], ['Transport', 'Car insurance'], ['Transport', 'Car rego'], ['Transport', 'Fuel'], ['Transport', 'Car maintenance'], ['Transport', 'Public transport'], ['Transport', 'Parking'],
-  ['Health', 'Health insurance'], ['Health', 'Doctor'], ['Health', 'Dentist'], ['Health', 'Pharmacy'], ['Health', 'Gym'], ['Health', 'Sport'],
-  ['Lifestyle', 'Streaming'], ['Lifestyle', 'Subscriptions'], ['Lifestyle', 'AI tools'], ['Lifestyle', 'Hobbies'], ['Lifestyle', 'Dance classes'], ['Lifestyle', 'Clothes'], ['Lifestyle', 'Haircut'], ['Lifestyle', 'Personal care'], ['Lifestyle', 'Fun money'],
-  ['Family', 'Kids'], ['Family', 'Childcare'], ['Family', 'School'], ['Family', 'Pets'], ['Family', 'Vet'], ['Family', 'Gifts'], ['Family', 'Donations'],
-  ['Travel', 'Holidays'], ['Travel', 'Flights'], ['Travel', 'Travel insurance'],
-  ['Home', 'Furniture'], ['Home', 'Appliances'], ['Home', 'Repairs'], ['Home', 'Cleaning'], ['Home', 'Garden'],
-  ['Finance', 'Life insurance'], ['Finance', 'Income protection'], ['Finance', 'Credit card'], ['Finance', 'Personal loan'], ['Finance', 'Student loan'], ['Finance', 'Tax'], ['Finance', 'Fees'], ['Finance', 'Investing'], ['Finance', 'Savings transfer']];
-const SAVINGS_TAGS = [['Other', 'Other'], ['Other', 'Other 2'],
-  ['Safety', 'Emergency fund'], ['Safety', 'Debt payoff'],
-  ['Big', 'House deposit'], ['Big', 'Car'], ['Big', 'Wedding'], ['Big', 'Renovation'], ['Big', 'Investment'],
-  ['Fun', 'Holiday'], ['Fun', 'Tech'], ['Fun', 'Furniture'], ['Fun', 'Hobby gear'],
-  ['Life', 'Education'], ['Life', 'Baby'], ['Life', 'Moving'], ['Life', 'Gift'],
-  ['Passive', 'Investing'], ['Passive', 'Retirement'], ['Passive', 'Term deposit']];
-const TAGS = { incomes: INCOME_TAGS, expenses: EXPENSE_TAGS, savings: SAVINGS_TAGS };
-const tagIndex = (tags, name) => tags.findIndex(t => t[1] === name);
-// monochrome text glyphs (U+FE0E forces text presentation where a font would otherwise pick the colour emoji)
-const GROUP_ICON = { Other: '·', Work: '⚙\uFE0E', Passive: '%', Housing: '⌂', Utilities: '⚡\uFE0E', Food: '☕\uFE0E', Transport: '⛽\uFE0E', Health: '✚', Lifestyle: '♫', Family: '☺\uFE0E', Travel: '✈\uFE0E', Home: '⚒\uFE0E', Finance: '⚖\uFE0E', Safety: '☂\uFE0E', Big: '▲', Fun: '★', Life: '✿' };
-const groupIcon = (tags, i) => `<span class="gi" title="${tags[i][0]}">${GROUP_ICON[tags[i][0]] || '▫'}</span>`;
-const dragHandle = kind => `<span class="drag${sortMode[kind] ? ' off' : ''}" data-drag title="${sortMode[kind] ? 'clear sort to reorder' : 'drag to reorder'}">⠿</span>`;
-
-function tagSelect(tags, val) {
-  let html = `<select data-f="tag">`, group = null;
-  tags.forEach((t, i) => {
-    if (t[0] !== group) { if (group !== null) html += `</optgroup>`; group = t[0]; html += `<optgroup label="${group}">`; }
-    html += `<option value="${i}" ${i === val ? 'selected' : ''}>${t[1]}</option>`;
-  });
-  return html + `</optgroup></select>`;
-}
+const amtEncode = (w, up) => { w = Math.min(AMT_MAX, Math.max(0, +w || 0)); const r = v => up ? Math.ceil(v - 1e-9) : Math.floor(v + 1e-9); return r(w) <= 511 ? r(w) : 512 | Math.min(511, r(w / 10)); };
+const amtDecode = c => c & 512 ? (c & 511) * 10 : c;
 
 // ---------- state ----------
-// lines: {id, owner, tag, code}   weekly amount = amtDecode(code)
+const uid = () => Math.random().toString(36).slice(2, 7);
+const defaultState = () => ({ period: 0, split: 0, people: [{ id: uid(), init: '', pct: 50 }, { id: uid(), init: '', pct: 50 }], l: { i: [], e: [], s: [] } }); // l: lines {id, owner, tag, code}
 let state = defaultState();
-function defaultState() {
-  // split: 0 equal, 1 proportional to income, 2 custom (people[i].pct, whole percents summing to 100)
-  return { period: 0, split: 0, people: [{ id: uid(), init: '', pct: 50 }, { id: uid(), init: '', pct: 50 }], incomes: [], expenses: [], savings: [] };
-}
-function uid() { return Math.random().toString(36).slice(2, 7); }
-const pidx = p => state.people.findIndex(q => q.id === p.id);
+const people = () => state.people, owners = s => ['H', ...s.people.map(p => p.id)];
+const pidx = p => people().indexOf(p);
 const cleanInit = v => (v || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2);
-// label: initials if set (with (2), (3) for duplicates), else the colour name
-function pname(p) {
-  if (!p.init) return COLOURS[pidx(p)][0];
-  const same = state.people.filter(q => q.init === p.init), k = same.indexOf(p);
-  return p.init + (k > 0 ? ` (${k + 1})` : '');
-}
+const pname = p => { if (!p.init) return COLOURS[pidx(p)][0]; const k = people().filter(q => q.init === p.init).indexOf(p); return p.init + (k ? ` (${k + 1})` : ''); };
 const pcol = p => COLOURS[pidx(p)][1];
-const lineAmt = it => amtDecode(it.code);
-const setLineAmt = (it, weekly, isExp) => { it.code = amtEncode(weekly, isExp); };
+const of = (kind, owner, s = state) => s.l[kind].filter(x => x.owner === owner);
 
 // ---------- calc ----------
-function periodDays() { return PERIODS[state.period][1]; }
-const perPeriod = (it, days) => amtDecode(it.code) / 7 * days;
-
-// whole-percent share per person, always summing to 100 (last person absorbs rounding)
+// whole-percent share per person, summing to 100 (last person absorbs rounding)
 function shares(r) {
-  const ps = state.people, n = ps.length, out = {};
-  let raw;
-  if (state.split === 1) { const tot = ps.reduce((s, p) => s + r[p.id].income, 0); raw = ps.map(p => tot ? r[p.id].income / tot * 100 : 100 / n); }
-  else if (state.split === 2) { const tot = ps.reduce((s, p) => s + (Number(p.pct) || 0), 0); raw = ps.map(p => tot ? (Number(p.pct) || 0) / tot * 100 : 100 / n); }
-  else raw = ps.map(() => 100 / n);
+  const ps = people(), n = ps.length, out = {};
+  const tot = ps.reduce((s, p) => s + (state.split === 1 ? r[p.id].i : +p.pct || 0), 0);
+  const raw = ps.map(p => state.split && tot ? (state.split === 1 ? r[p.id].i : +p.pct || 0) / tot * 100 : 100 / n);
   let acc = 0;
   ps.forEach((p, i) => { const v = i === n - 1 ? 100 - acc : Math.round(raw[i]); out[p.id] = v; acc += v; });
   return out;
 }
+// set one person's custom share and rebalance the others proportionally so the total stays 100
 function setPct(id, val) {
-  // set one person's share and rebalance the others proportionally so the total stays 100
-  const ps = state.people, me = ps.find(p => p.id === id); val = Math.max(0, Math.min(100, Math.round(Number(val) || 0)));
-  const others = ps.filter(p => p !== me), rest = 100 - val, otot = others.reduce((s, p) => s + (Number(p.pct) || 0), 0);
+  const me = people().find(p => p.id === id), others = people().filter(p => p !== me);
+  val = Math.max(0, Math.min(100, Math.round(+val) || 0));
+  const rest = 100 - val, otot = others.reduce((s, p) => s + (+p.pct || 0), 0);
   let acc = 0;
-  others.forEach((p, i) => { const v = i === others.length - 1 ? rest - acc : Math.round(otot ? (Number(p.pct) || 0) / otot * rest : rest / others.length); p.pct = v; acc += v; });
+  others.forEach((p, i) => { const v = i === others.length - 1 ? rest - acc : Math.round(otot ? (+p.pct || 0) / otot * rest : rest / others.length); p.pct = v; acc += v; });
   me.pct = val;
 }
-
-function calc(days = periodDays()) {
+const per = (x, days) => amtDecode(x.code) / 7 * days;
+function calc(days = PERIODS[state.period][1]) {
   const r = {};
-  for (const o of ['H', ...state.people.map(p => p.id)]) r[o] = { income: 0, expense: 0, saving: 0 };
-  for (const i of state.incomes) if (r[i.owner]) r[i.owner].income += perPeriod(i, days);
-  for (const e of state.expenses) if (r[e.owner]) r[e.owner].expense += perPeriod(e, days);
-  for (const v of state.savings) if (r[v.owner]) r[v.owner].saving += perPeriod(v, days);
-
-  // shared shortfall is split by the split rule; shared surplus stays in the household bucket
-  // shared net (income − expenses − savings) shortfall is split by the split rule; shared surplus stays in the household bucket
-  const share = shares(r), h = r['H'], hNet = h.income - h.expense - h.saving;
-  const out = { days, rows: [], share };
-  for (const p of state.people) {
-    const me = r[p.id], take = hNet < 0 ? hNet * share[p.id] / 100 : 0;
-    out.rows.push({ name: pname(p), colour: pcol(p), ...me, contribH: take, left: me.income - me.expense - me.saving + take });
-  }
-  out.rows.push({ name: 'Household', ...h, contribH: 0, left: Math.max(0, hNet), isH: true });
-  const sum = k => out.rows.reduce((s, x) => s + x[k], 0);
-  out.rows.push({ name: 'TOTAL', income: sum('income'), expense: sum('expense'), saving: sum('saving'), left: sum('left'), isTotal: true });
-  return out;
+  for (const o of owners(state)) r[o] = { i: 0, e: 0, s: 0 };
+  for (const k of KINDS) for (const x of state.l[k]) if (r[x.owner]) r[x.owner][k] += per(x, days);
+  // shared net shortfall is charged to people by the split rule; shared surplus stays in the household bucket
+  const share = shares(r), h = r.H, hNet = h.i - h.e - h.s, rows = [];
+  for (const p of people()) { const m = r[p.id], take = hNet < 0 ? hNet * share[p.id] / 100 : 0; rows.push({ name: pname(p), colour: pcol(p), ...m, take, left: m.i - m.e - m.s + take }); }
+  rows.push({ name: 'Household', ...h, take: 0, left: Math.max(0, hNet), isH: true });
+  const sum = k => rows.reduce((s, x) => s + x[k], 0);
+  rows.push({ name: 'TOTAL', i: sum('i'), e: sum('e'), s: sum('s'), left: sum('left'), isTotal: true });
+  return { days, rows, share };
 }
 
 // ---------- render ----------
 const $ = s => document.querySelector(s);
 const fmt = n => (n < 0 ? '-' : '') + Math.abs(n).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 const cls = n => n < 0 ? 'neg' : 'pos';
-const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const sel = (f, opts, val) => `<select data-f="${f}">` + opts.map((o, i) => `<option value="${i}" ${i === val ? 'selected' : ''}>${esc(o)}</option>`).join('') + `</select>`;
+const esc = s => String(s).replace(/[&<>"]/g, c => `&#${c.charCodeAt(0)};`);
+const opt = (v, label, on) => `<option value="${v}"${on ? ' selected' : ''}>${esc(label)}</option>`;
+const swatch = c => `<span style="display:inline-block;width:12px;height:12px;background:${c};vertical-align:middle"></span>`;
+const sortMode = { i: 0, e: 0, s: 0 }; // view only: 0 as entered, 1 highest first, 2 lowest first
+const activeTab = {}; // owner id -> tab index (view only)
+let note = null; // one-shot {id, text} when an entered value was snapped
 
-function lineTable(kind, owner, items) {
-  const isExp = kind !== 'incomes', tags = TAGS[kind], max = { incomes: MAX_INC, expenses: MAX_EXP, savings: MAX_SAV }[kind];
-  const label = { incomes: 'Income', expenses: 'Expense', savings: 'Saving' }[kind];
-  let html = `<table data-kind="${kind}" data-owner="${owner}"><tr><th>${label}</th><th class="w-amt sortable" data-sort="${kind}" title="sort">$/week${SORT_ARROW[sortMode[kind]]}</th><th class="w-conv">period</th><th class="w-del"></th></tr>`;
-  for (const it of sorted(kind, items, lineAmt)) {
-    html += `<tr data-id="${it.id}"><td><div class="tagcell">${dragHandle(kind)}${groupIcon(tags, it.tag)}${tagSelect(tags, it.tag)}</div></td>
-      <td><input type="number" data-f="amt" value="${lineAmt(it)}" min="0" max="${AMT_MAX}" step="${lineAmt(it) > 511 ? 10 : 1}"${noteAttr(it.id, 'amt')}></td>
-      <td>${sel('conv', CONV.map(f => f[0]), 0)}</td>
-      <td><button type="button" data-act="del">x</button></td></tr>`;
+function tagSelect(kind, val) {
+  let html = `<select data-f="tag">`, g = null;
+  TAGS[kind].forEach((t, i) => { if (t[0] !== g) { html += (g ? '</optgroup>' : '') + `<optgroup label="${t[0]}">`; g = t[0]; } html += opt(i, t[1], i === val); });
+  return html + '</optgroup></select>';
+}
+function lineTable(kind, owner) {
+  const items = of(kind, owner), m = sortMode[kind], name = KNAME[kind];
+  const rows = m ? [...items].sort((a, b) => (m === 1 ? 1 : -1) * (amtDecode(b.code) - amtDecode(a.code))) : items;
+  let html = `<table data-kind="${kind}" data-owner="${owner}"><tr><th>${name}</th><th class="w-amt sortable" data-sort="${kind}" title="sort">$/week${['', ' ▼', ' ▲'][m]}</th><th class="w-conv">period</th><th class="w-del"></th></tr>`;
+  for (const x of rows) {
+    const a = amtDecode(x.code), n = note && note.id === x.id;
+    html += `<tr data-id="${x.id}"><td><div class="tagcell"><span class="drag${m ? ' off' : ''}" data-drag title="${m ? 'clear sort to reorder' : 'drag to reorder'}">⠿</span><span class="gi" title="${TAGS[kind][x.tag][0]}">${ICON[TAGS[kind][x.tag][0]]}</span>${tagSelect(kind, x.tag)}</div></td>` +
+      `<td><input type="number" data-f="amt" value="${a}" min="0" max="${AMT_MAX}" step="${a > 511 ? 10 : 1}"${n ? ` class="snapped" title="${esc(note.text)}"` : ''}></td>` +
+      `<td><select data-f="conv">${CONV.map((c, i) => opt(i, c[0], !i)).join('')}</select></td><td><button type="button" data-act="del">x</button></td></tr>`;
   }
-  return html + `<tr><td colspan="4">${items.length < max ? `<button type="button" data-act="add">+ ${label.toLowerCase()}</button>` : `<span class="small">max ${max}</span>`}</td></tr></table>` + noteLine(items);
+  html += `<tr><td colspan="4">${items.length < KMAX[kind] ? `<button type="button" data-act="add">+ ${name.toLowerCase()}</button>` : `<span class="small">max ${KMAX[kind]}</span>`}</td></tr></table>`;
+  return html + (note && items.some(x => x.id === note.id) ? `<div class="small">${esc(note.text)}</div>` : '');
 }
-
-// one-shot note when an entered value was snapped, e.g. "rounded up from 11.25 to 12"
-let lastNote = null; // {id, field, text}
-const noteAttr = (id, field) => lastNote && lastNote.id === id && lastNote.field === field ? ` title="${esc(lastNote.text)}" class="snapped"` : '';
-const noteLine = items => lastNote && items.some(x => x.id === lastNote.id) ? `<div class="small note">${esc(lastNote.text)}</div>` : '';
-function setNote(id, field, raw, snapped, dir) {
-  lastNote = Math.abs(raw - snapped) > 0.005 ? { id, field, text: `Rounded ${dir} from ${(+raw.toFixed(2))} to ${snapped}` } : null;
-}
-
 function splitTable(share) {
-  const opts = [['Equal', 'Straight split between people'], ['Income', 'In proportion to each person\'s income'], ['Custom', 'Set each person\'s share']];
-  let html = `<div class="splitopts">` + opts.map((o, i) => `<input type="radio" id="split${i}" name="split" value="${i}" ${state.split === i ? 'checked' : ''}><label for="split${i}"><b>${o[0]}</b></label><span class="small">${o[1]}</span>`).join('') + `</div>`;
-  html += `<table><tr><th>Who</th><th class="w-amt">Share %</th></tr>`;
-  for (const p of state.people) html += `<tr><td><span style="display:inline-block;width:12px;height:12px;background:${pcol(p)};vertical-align:middle"></span> ${pname(p)}</td>` +
-    `<td><input type="number" data-f="pct" data-pid="${p.id}" min="0" max="100" step="1" value="${state.split === 2 ? p.pct : share[p.id]}" ${state.split === 2 ? '' : 'disabled'}></td></tr>`;
-  return html + `</table>`;
+  const opts = [['Equal', 'Straight split between people'], ['Income', "In proportion to each person's income"], ['Custom', "Set each person's share"]];
+  let html = `<div class="splitopts">` + opts.map((o, i) => `<input type="radio" id="split${i}" name="split" value="${i}"${state.split === i ? ' checked' : ''}><label for="split${i}"><b>${o[0]}</b></label><span class="small">${o[1]}</span>`).join('') + `</div><table><tr><th>Who</th><th class="w-amt">Share %</th></tr>`;
+  for (const p of people()) html += `<tr><td>${swatch(pcol(p))} ${pname(p)}</td><td><input type="number" data-f="pct" data-pid="${p.id}" min="0" max="100" value="${state.split === 2 ? p.pct : share[p.id]}"${state.split === 2 ? '' : ' disabled'}></td></tr>`;
+  return html + '</table>';
 }
-
-// view-only sort per table kind: 0 as entered, 1 highest first, 2 lowest first
-const sortMode = { incomes: 0, expenses: 0, savings: 0 };
-const SORT_ARROW = ['', ' ▼', ' ▲'];
-function sorted(kind, items, value) { const m = sortMode[kind]; if (!m) return items; return [...items].sort((a, b) => m === 1 ? value(b) - value(a) : value(a) - value(b)); }
-const activeTab = {}; // owner id -> tab index (view state only). Shared: 0 split, 1 income, 2 expenses, 3 savings. People: 0 income, 1 expenses, 2 savings.
-
 function render() {
-  const c = calc(), cw = calc(7); // cards are always weekly; the forecast table follows the view period
+  const c = calc(), cw = calc(7); // cards are always weekly; the forecast follows the view period
   $('#period').value = state.period;
-
-
   let html = '';
-  for (const col of [{ id: 'H', name: 'Shared / Household' }, ...state.people.map(p => ({ ...p, name: pname(p) }))]) {
-    const isH = col.id === 'H';
-    const row = cw.rows.find(r => isH ? r.isH : r.name === col.name && !r.isH) || { income: 0, expense: 0, saving: 0, left: 0 };
-    html += `<div class="col" data-owner="${col.id}" style="border-color:${isH ? 'var(--strong)' : pcol(col)}"><h3>` +
-      (isH ? esc(col.name) : `<span style="display:inline-block;width:14px;height:14px;background:${pcol(col)};vertical-align:middle"></span> <input type="text" data-f="init" maxlength="2" placeholder="${COLOURS[pidx(col)][0]}" value="${esc(col.init || '')}" title="initials" style="width:3em;text-transform:uppercase"> ` +
-        `<button type="button" data-act="delPerson">x</button>`) + `</h3>` +
-      `<div class="tabs">` + (isH ? ['Split', 'Income', 'Expenses', 'Savings'] : ['Income', 'Expenses', 'Savings']).map((t, i) => `<button type="button" data-tab="${i}" class="${(activeTab[col.id] || 0) === i ? 'on' : ''}">${t}</button>`).join('') + `</div><div class="sheet">` +
-      [...(isH ? [splitTable(cw.share)] : []),
-       lineTable('incomes', col.id, state.incomes.filter(i => i.owner === col.id)),
-       lineTable('expenses', col.id, state.expenses.filter(e => e.owner === col.id)),
-       lineTable('savings', col.id, state.savings.filter(v => v.owner === col.id))][activeTab[col.id] || 0] +
-      `</div><div class="summary">Income ${fmt(row.income)} &minus; expenses ${fmt(row.expense)} &minus; savings ${fmt(row.saving)} = <b class="${cls(row.income - row.expense - row.saving)}">${fmt(row.income - row.expense - row.saving)}</b> /week</div>` +
-      (!isH && row.contribH ? `<div class="small">Share of household net: <span class="${cls(row.contribH)}">${fmt(row.contribH)}</span> /week</div>` : '') + `</div>`;
+  for (const o of owners(state)) {
+    const isH = o === 'H', p = people().find(q => q.id === o), row = cw.rows[isH ? people().length : pidx(p)];
+    const tabs = isH ? ['Split', 'Income', 'Expenses', 'Savings'] : ['Income', 'Expenses', 'Savings'], t = activeTab[o] || 0;
+    const sheets = [...(isH ? [() => splitTable(cw.share)] : []), ...KINDS.map(k => () => lineTable(k, o))];
+    const net = row.i - row.e - row.s;
+    html += `<div class="col" data-owner="${o}" style="border-color:${isH ? 'var(--strong)' : pcol(p)}"><h3>` +
+      (isH ? 'Shared / Household' : `${swatch(pcol(p))} <input type="text" data-f="init" maxlength="2" placeholder="${COLOURS[pidx(p)][0]}" value="${p.init}" title="initials" style="width:3em;text-transform:uppercase"> <button type="button" data-act="delPerson">x</button>`) +
+      `</h3><div class="tabs">${tabs.map((n, i) => `<button type="button" data-tab="${i}"${t === i ? ' class="on"' : ''}>${n}</button>`).join('')}</div><div class="sheet">${sheets[t]()}</div>` +
+      `<div class="summary">Income ${fmt(row.i)} &minus; expenses ${fmt(row.e)} &minus; savings ${fmt(row.s)} = <b class="${cls(net)}">${fmt(net)}</b> /week` +
+      (row.take ? `<div class="small">Share of household net: <span class="neg">${fmt(row.take)}</span> /week</div>` : '') + `</div></div>`;
   }
   const track = $('#track'), idx = curIndex();
-  track.innerHTML = html;
-  track.scrollLeft = idx * track.clientWidth;
-  updatePos();
+  track.innerHTML = html; track.scrollLeft = idx * track.clientWidth; updatePos();
 
-  let f = `<tr><th>Bucket</th><th>Income</th><th>Expenses</th><th>Savings</th><th>Household share</th><th>Left over</th></tr>`;
-  const per = `per ${PERIODS[state.period][0].toLowerCase()}`;
-  for (const r of c.rows) f += `<tr class="${r.isTotal ? 'total' : ''}${!r.isH && !r.isTotal && r.left < 0 ? ' red' : ''}"><td${r.colour ? ` style="border-left:6px solid ${r.colour}"` : ''}>${esc(r.name)}</td><td>${fmt(r.income)}</td><td>${fmt(r.expense)}</td><td>${fmt(r.saving)}</td>` +
-    `<td>${r.isTotal || r.isH ? '' : fmt(r.contribH)}</td><td class="${cls(r.left)}">${fmt(r.left)}</td></tr>`;
-  $('#forecast').innerHTML = f + `<tr><td colspan="6" class="small">${per}</td></tr>`;
-  // savings summary: every savings line across all buckets for the view period, largest first
-  const sv = state.savings.map(v => ({ v, amt: perPeriod(v, c.days), who: v.owner === 'H' ? { name: 'Shared', colour: null } : { name: pname(state.people.find(p => p.id === v.owner)), colour: pcol(state.people.find(p => p.id === v.owner)) } }))
-    .sort((a, b) => b.amt - a.amt);
-  let ssum = `<tr><th>Who</th><th>Saving</th><th>${per}</th></tr>`;
-  for (const x of sv) ssum += `<tr><td${x.who.colour ? ` style="border-left:6px solid ${x.who.colour}"` : ''}>${esc(x.who.name)}</td><td>${esc(SAVINGS_TAGS[x.v.tag][1])}</td><td>${fmt(x.amt)}</td></tr>`;
-  if (sv.length) ssum += `<tr class="total"><td colspan="2">TOTAL</td><td>${fmt(sv.reduce((a, x) => a + x.amt, 0))}</td></tr>`;
-  $('#savsum').innerHTML = sv.length ? ssum : '';
+  const bar = c => c ? ` style="border-left:6px solid ${c}"` : '', perLabel = 'per ' + PERIODS[state.period][0].toLowerCase();
+  $('#forecast').innerHTML = `<tr><th>Bucket</th><th>Income</th><th>Expenses</th><th>Savings</th><th>Household share</th><th>Left over</th></tr>` +
+    c.rows.map(r => `<tr class="${r.isTotal ? 'total' : ''}${!r.isH && !r.isTotal && r.left < 0 ? ' red' : ''}"><td${bar(r.colour)}>${esc(r.name)}</td><td>${fmt(r.i)}</td><td>${fmt(r.e)}</td><td>${fmt(r.s)}</td><td>${r.isTotal || r.isH ? '' : fmt(r.take)}</td><td class="${cls(r.left)}">${fmt(r.left)}</td></tr>`).join('') +
+    `<tr><td colspan="6" class="small">${perLabel}</td></tr>`;
+  // every savings line across all buckets for the view period, largest first
+  const sv = state.l.s.map(x => ({ x, amt: per(x, c.days), p: people().find(q => q.id === x.owner) })).sort((a, b) => b.amt - a.amt);
   $('#savsum').hidden = !sv.length;
+  $('#savsum').innerHTML = sv.length ? `<tr><th>Who</th><th>Saving</th><th>${perLabel}</th></tr>` + sv.map(v => `<tr><td${bar(v.p && pcol(v.p))}>${v.p ? esc(pname(v.p)) : 'Shared'}</td><td>${esc(TAGS.s[v.x.tag][1])}</td><td>${fmt(v.amt)}</td></tr>`).join('') +
+    `<tr class="total"><td colspan="2">TOTAL</td><td>${fmt(sv.reduce((a, v) => a + v.amt, 0))}</td></tr>` : '';
   updateLink();
 }
 
 // ---------- events ----------
+const ctx = t => { const tr = t.closest('tr'), tb = t.closest('table'), kind = tb && tb.dataset.kind; return { tr, tb, kind, owner: tb && tb.dataset.owner, item: kind && state.l[kind].find(x => x.id === tr.dataset.id) }; };
 document.body.addEventListener('input', e => {
-  const t = e.target, f = t.dataset.f; if (!f) return;
-  if (f === 'init') { state.people.find(p => p.id === t.closest('.col').dataset.owner).init = cleanInit(t.value); updateLink(); return; }
-  const tr = t.closest('tr'), table = t.closest('table'), kind = table.dataset.kind;
-  const item = state[kind].find(x => x.id === tr.dataset.id); if (!item) return;
-  if (f === 'amt' || f === 'conv' || f === 'pct') return; // committed on change
-  item[f] = Number(t.value);
-  render();
+  const t = e.target, f = t.dataset.f;
+  if (f === 'init') { people().find(p => p.id === t.closest('.col').dataset.owner).init = cleanInit(t.value); updateLink(); }
+  else if (f === 'tag') { const { item } = ctx(t); if (item) { item.tag = +t.value; render(); } }
 });
 document.body.addEventListener('change', e => {
   const t = e.target, f = t.dataset.f;
-  if (t.name === 'split') { state.split = Number(t.value); render(); return; }
-  if (f === 'init') { render(); return; }
-  if (f === 'pct') { setPct(t.dataset.pid, t.value); render(); return; }
-  if (f === 'amt' || f === 'conv') {
-    const tr = t.closest('tr'), table = t.closest('table'), kind = table.dataset.kind;
-    const item = state[kind].find(x => x.id === tr.dataset.id); if (!item) return;
-    // amount typed is interpreted at the "period" unit, converted to weekly, then snapped
-    const raw = Number(tr.querySelector('[data-f=amt]').value) || 0, conv = CONV[Number(tr.querySelector('[data-f=conv]').value)][1];
-    setLineAmt(item, raw / conv, kind !== 'incomes'); delete item._raw;
-    setNote(item.id, 'amt', raw / conv, lineAmt(item), kind !== 'incomes' ? 'up' : 'down');
-    render();
-  }
-});
-
-document.body.addEventListener('click', e => {
-  if (e.target.dataset.sort) { const k = e.target.dataset.sort; sortMode[k] = (sortMode[k] + 1) % 3; render(); return; }
-  if (e.target.dataset.tab !== undefined) { activeTab[e.target.closest('.col').dataset.owner] = Number(e.target.dataset.tab); render(); return; }
-  const act = e.target.dataset.act; if (!act) return;
-  if (act === 'add') {
-    const table = e.target.closest('table');
-    const kind = table.dataset.kind, owner = table.dataset.owner;
-    state[kind].push({ id: uid(), owner, tag: 2, code: 0 });
-  } else if (act === 'del') {
-    const table = e.target.closest('table'), tr = e.target.closest('tr'), kind = table.dataset.kind;
-    state[kind] = state[kind].filter(x => x.id !== tr.dataset.id);
-  } else if (act === 'delPerson') {
-    const id = e.target.closest('.col').dataset.owner;
-    if (!confirm('Remove this person and all their lines?')) return;
-    state.people = state.people.filter(p => p.id !== id);
-    state.incomes = state.incomes.filter(i => i.owner !== id);
-    state.expenses = state.expenses.filter(x => x.owner !== id);
-    state.savings = state.savings.filter(x => x.owner !== id);
-  }
+  if (t.name === 'split') state.split = +t.value;
+  else if (f === 'pct') setPct(t.dataset.pid, t.value);
+  else if (f === 'amt' || f === 'conv') {
+    const { tr, kind, item } = ctx(t); if (!item) return;
+    // the typed amount is interpreted at the "period" unit, converted to weekly, then snapped (income down, others up)
+    const w = (+tr.querySelector('[data-f=amt]').value || 0) / CONV[+tr.querySelector('[data-f=conv]').value][1], up = kind !== 'i';
+    item.code = amtEncode(w, up); const a = amtDecode(item.code);
+    note = Math.abs(w - a) > 0.005 ? { id: item.id, text: `Rounded ${up ? 'up' : 'down'} from ${+w.toFixed(2)} to ${a}` } : null;
+  } else if (f !== 'init') return;
   render();
 });
-const curIndex = () => { const t = $('#track'); return t.clientWidth ? Math.round(t.scrollLeft / t.clientWidth) : 0; };
-function updatePos() { const t = $('#track'), n = t.children.length; $('#pos').textContent = n ? `${curIndex() + 1} / ${n}` : ''; }
-$('#track').addEventListener('scroll', updatePos);
-const go = d => { const t = $('#track'), n = t.children.length; t.scrollTo({ left: ((curIndex() + d + n) % n) * t.clientWidth, behavior: 'smooth' }); };
-$('#prev').onclick = () => go(-1);
-$('#downBtn').onclick = () => $('#page2').scrollIntoView({ behavior: 'smooth' });
-$('#upBtn').onclick = () => $('#page1').scrollIntoView({ behavior: 'smooth' });
-$('#downBtn2').onclick = () => $('#page3').scrollIntoView({ behavior: 'smooth' });
-$('#upBtn2').onclick = () => $('#page2').scrollIntoView({ behavior: 'smooth' });
-$('#next').onclick = () => go(1);
-window.addEventListener('resize', () => { const t = $('#track'); t.scrollLeft = curIndex() * t.clientWidth; });
-$('#shareBtn').onclick = async () => {
-  const url = location.href;
-  try {
-    if (navigator.share) { await navigator.share({ url }); $('#shareMsg').textContent = 'shared'; }
-    else { await navigator.clipboard.writeText(url); $('#shareMsg').textContent = 'link copied'; }
-  } catch { try { await navigator.clipboard.writeText(url); $('#shareMsg').textContent = 'link copied'; } catch { $('#shareMsg').textContent = url; } }
-  setTimeout(() => { $('#shareMsg').innerHTML = '&nbsp;'; }, 2000);
-};
+document.body.addEventListener('click', e => {
+  const t = e.target, d = t.dataset;
+  if (d.sort) sortMode[d.sort] = (sortMode[d.sort] + 1) % 3;
+  else if (d.tab) activeTab[t.closest('.col').dataset.owner] = +d.tab;
+  else if (d.act === 'add') { const { kind, owner } = ctx(t); state.l[kind].push({ id: uid(), owner, tag: 2, code: 0 }); }
+  else if (d.act === 'del') { const { kind, item } = ctx(t); state.l[kind] = state.l[kind].filter(x => x !== item); }
+  else if (d.act === 'delPerson') {
+    const id = t.closest('.col').dataset.owner; if (!confirm('Remove this person and all their lines?')) return;
+    state.people = people().filter(p => p.id !== id); for (const k of KINDS) state.l[k] = state.l[k].filter(x => x.owner !== id);
+  } else if (d.go) { $(d.go).scrollIntoView({ behavior: 'smooth' }); return; }
+  else return;
+  render();
+});
 // drag to reorder rows within a table: move DOM rows while dragging, commit to state on release
 document.body.addEventListener('pointerdown', e => {
   const h = e.target.closest('[data-drag]'); if (!h || h.classList.contains('off')) return;
   e.preventDefault();
-  const tr = h.closest('tr'), table = tr.closest('table'), kind = table.dataset.kind, owner = table.dataset.owner;
+  const tr = h.closest('tr'), { tb, kind, owner } = ctx(h);
   tr.classList.add('dragging');
   const move = ev => {
     const el = document.elementFromPoint(ev.clientX, ev.clientY), over = el && el.closest('tr[data-id]');
-    if (!over || over === tr || over.closest('table') !== table) return;
-    const r = over.getBoundingClientRect(), before = ev.clientY < r.top + r.height / 2;
-    if (before) table.tBodies[0].insertBefore(tr, over); else table.tBodies[0].insertBefore(tr, over.nextSibling);
+    if (!over || over === tr || over.closest('table') !== tb) return;
+    const r = over.getBoundingClientRect();
+    tb.tBodies[0].insertBefore(tr, ev.clientY < r.top + r.height / 2 ? over : over.nextSibling);
   };
   const up = () => {
-    document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); document.removeEventListener('pointercancel', up);
-    tr.classList.remove('dragging');
-    const order = [...table.querySelectorAll('tr[data-id]')].map(x => x.dataset.id);
-    const mine = state[kind].filter(x => x.owner === owner), byId = Object.fromEntries(mine.map(x => [x.id, x]));
-    const queue = order.map(id => byId[id]).filter(Boolean);
-    if (queue.length !== mine.length) return render();
-    state[kind] = state[kind].map(x => x.owner === owner ? queue.shift() : x);
+    for (const ev of ['pointermove', 'pointerup', 'pointercancel']) document.removeEventListener(ev, ev === 'pointermove' ? move : up);
+    const order = [...tb.querySelectorAll('tr[data-id]')].map(x => x.dataset.id), mine = of(kind, owner);
+    const queue = order.map(id => mine.find(x => x.id === id)).filter(Boolean);
+    if (queue.length === mine.length) state.l[kind] = state.l[kind].map(x => x.owner === owner ? queue.shift() : x);
     render();
   };
-  document.addEventListener('pointermove', move); document.addEventListener('pointerup', up); document.addEventListener('pointercancel', up);
+  for (const ev of ['pointermove', 'pointerup', 'pointercancel']) document.addEventListener(ev, ev === 'pointermove' ? move : up);
 });
-$('#period').innerHTML = PERIODS.map((p, i) => `<option value="${i}">${p[0]}</option>`).join('');
-$('#period').onchange = e => { state.period = Number(e.target.value); render(); };
-$('#addPerson').onclick = () => { if (state.people.length >= MAX_PEOPLE) return alert(`Max ${MAX_PEOPLE} people`); state.people.push({ id: uid(), init: '', pct: 0 }); render(); };
+const curIndex = () => { const t = $('#track'); return t.clientWidth ? Math.round(t.scrollLeft / t.clientWidth) : 0; };
+const updatePos = () => { const n = $('#track').children.length; $('#pos').textContent = n ? `${curIndex() + 1} / ${n}` : ''; };
+const go = d => { const t = $('#track'), n = t.children.length; t.scrollTo({ left: ((curIndex() + d + n) % n) * t.clientWidth, behavior: 'smooth' }); };
+$('#track').onscroll = updatePos;
+$('#prev').onclick = () => go(-1);
+$('#next').onclick = () => go(1);
+onresize = () => { const t = $('#track'); t.scrollLeft = curIndex() * t.clientWidth; };
+$('#period').innerHTML = PERIODS.map((p, i) => opt(i, p[0])).join('');
+$('#period').onchange = e => { state.period = +e.target.value; render(); };
+$('#addPerson').onclick = () => { if (people().length >= 8) return alert('Max 8 people'); people().push({ id: uid(), init: '', pct: 0 }); render(); };
+$('#shareBtn').onclick = async () => {
+  const url = location.href, msg = $('#shareMsg');
+  try { if (navigator.share) { await navigator.share({ url }); msg.textContent = 'shared'; } else throw 0; }
+  catch { try { await navigator.clipboard.writeText(url); msg.textContent = 'link copied'; } catch { msg.textContent = url; } }
+  setTimeout(() => { msg.innerHTML = '&nbsp;'; }, 2000);
+};
 
 // ---------- bit-packed serialisation ----------
 // header: ver4 npeople-1 3 split2, then per person: initials 2x5 bits (26 = blank) [pct7 if custom]. Colours come from position. View period is not encoded.
-// per owner (H, then people in order): ninc4, lines; nexp5, lines; nsav4, lines
-// line: tag6 code10 (scale1 + mantissa9) = 16 bits exactly
-class BitWriter {
-  constructor() { this.bits = []; }
-  w(val, n) { for (let i = n - 1; i >= 0; i--) this.bits.push((val >> i) & 1); }
-  bytes() { const out = new Uint8Array(Math.ceil(this.bits.length / 8)); this.bits.forEach((b, i) => { out[i >> 3] |= b << (7 - (i & 7)); }); return out; }
-}
-class BitReader {
-  constructor(bytes) { this.b = bytes; this.p = 0; }
-  r(n) { let v = 0; for (let i = 0; i < n; i++) { const byte = this.b[this.p >> 3] || 0; v = (v << 1) | ((byte >> (7 - (this.p & 7))) & 1); this.p++; } return v >>> 0; }
-}
+// per owner (H, then people in order): count then lines for i (4-bit count), e (5), s (4). line: tag6 code10 = 16 bits.
 function encode(s) {
-  const bw = new BitWriter();
-  bw.w(VERSION, 4); bw.w(s.people.length - 1, 3); bw.w(s.split, 2);
-  for (const p of s.people) { const init = cleanInit(p.init); for (let i = 0; i < 2; i++) bw.w(init[i] ? init.charCodeAt(i) - 65 : 26, 5); if (s.split === 2) bw.w(Math.max(0, Math.min(100, Math.round(p.pct) || 0)), 7); }
-  const line = it => { bw.w(it.tag, 6); bw.w(it.code, 10); };
-  for (const o of ['H', ...s.people.map(p => p.id)]) {
-    const inc = s.incomes.filter(i => i.owner === o).slice(0, MAX_INC), exp = s.expenses.filter(e => e.owner === o).slice(0, MAX_EXP), sav = s.savings.filter(v => v.owner === o).slice(0, MAX_SAV);
-    bw.w(inc.length, 4); inc.forEach(line); bw.w(exp.length, 5); exp.forEach(line); bw.w(sav.length, 4); sav.forEach(line);
-  }
-  return bw.bytes();
+  const bits = [], w = (v, n) => { for (let i = n - 1; i >= 0; i--) bits.push((v >> i) & 1); };
+  w(VERSION, 4); w(s.people.length - 1, 3); w(s.split, 2);
+  for (const p of s.people) { const init = cleanInit(p.init); for (let i = 0; i < 2; i++) w(init[i] ? init.charCodeAt(i) - 65 : 26, 5); if (s.split === 2) w(Math.max(0, Math.min(100, Math.round(p.pct) || 0)), 7); }
+  for (const o of owners(s)) for (const k of KINDS) { const ls = of(k, o, s).slice(0, KMAX[k]); w(ls.length, KBITS[k]); for (const x of ls) { w(x.tag, 6); w(x.code, 10); } }
+  const out = new Uint8Array(Math.ceil(bits.length / 8)); bits.forEach((b, i) => { out[i >> 3] |= b << (7 - (i & 7)); }); return out;
 }
 function decode(bytes) {
-  const br = new BitReader(bytes), s = {};
-  const v = br.r(4); if (v !== VERSION) throw new Error('unknown version ' + v);
-  s.period = viewPrefs().period;
-  const np = br.r(3) + 1; s.people = []; s.split = br.r(2);
-  for (let i = 0; i < np; i++) {
-    let init = ''; for (let k = 0; k < 2; k++) { const c = br.r(5); if (c < 26) init += String.fromCharCode(65 + c); }
-    const p = { id: uid(), init, pct: 0 }; if (s.split === 2) p.pct = br.r(7); s.people.push(p);
-  }
-  if (s.split !== 2) s.people.forEach((p, i) => { p.pct = i === np - 1 ? 100 - Math.floor(100 / np) * (np - 1) : Math.floor(100 / np); });
-  s.incomes = []; s.expenses = []; s.savings = [];
-  const line = owner => ({ id: uid(), owner, tag: br.r(6), code: br.r(10) });
-  for (const o of ['H', ...s.people.map(p => p.id)]) {
-    let n = br.r(4); for (let i = 0; i < n; i++) s.incomes.push(line(o));
-    n = br.r(5); for (let i = 0; i < n; i++) s.expenses.push(line(o));
-    n = br.r(4); for (let i = 0; i < n; i++) s.savings.push(line(o));
-  }
+  let p = 0; const r = n => { let v = 0; for (let i = 0; i < n; i++, p++) v = (v << 1) | (((bytes[p >> 3] || 0) >> (7 - (p & 7))) & 1); return v >>> 0; };
+  const v = r(4); if (v !== VERSION) throw new Error('unknown version ' + v);
+  const s = { period: viewPref(), people: [], l: { i: [], e: [], s: [] } }, np = r(3) + 1; s.split = r(2);
+  for (let i = 0; i < np; i++) { let init = ''; for (let k = 0; k < 2; k++) { const c = r(5); if (c < 26) init += String.fromCharCode(65 + c); } s.people.push({ id: uid(), init, pct: s.split === 2 ? r(7) : i === np - 1 ? 100 - Math.floor(100 / np) * (np - 1) : Math.floor(100 / np) }); }
+  for (const o of owners(s)) for (const k of KINDS) { const n = r(KBITS[k]); for (let i = 0; i < n; i++) s.l[k].push({ id: uid(), owner: o, tag: r(6), code: r(10) }); }
   return s;
 }
 // base32 (uppercase, no padding) so the QR can use alphanumeric mode for the payload segment
 const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-const b32 = {
-  enc: bytes => { let bits = '', out = ''; for (const b of bytes) bits += b.toString(2).padStart(8, '0'); for (let i = 0; i < bits.length; i += 5) out += B32[parseInt(bits.slice(i, i + 5).padEnd(5, '0'), 2)]; return out; },
-  dec: str => { let bits = ''; for (const c of str.toUpperCase()) { const v = B32.indexOf(c); if (v < 0) throw new Error('bad char ' + c); bits += v.toString(2).padStart(5, '0'); } const out = []; for (let i = 0; i + 8 <= bits.length; i += 8) out.push(parseInt(bits.slice(i, i + 8), 2)); return Uint8Array.from(out); },
-};
+const b32enc = bytes => { let b = '', o = ''; for (const x of bytes) b += x.toString(2).padStart(8, '0'); for (let i = 0; i < b.length; i += 5) o += B32[parseInt(b.slice(i, i + 5).padEnd(5, '0'), 2)]; return o; };
+const b32dec = str => { let b = ''; for (const c of str.toUpperCase()) { const v = B32.indexOf(c); if (v < 0) throw new Error('bad char ' + c); b += v.toString(2).padStart(5, '0'); } const o = []; for (let i = 0; i + 8 <= b.length; i += 8) o.push(parseInt(b.slice(i, i + 8), 2)); return Uint8Array.from(o); };
 
 let linkTimer;
 function updateLink() {
-  save();
-  clearTimeout(linkTimer);
+  save(); clearTimeout(linkTimer);
   linkTimer = setTimeout(() => {
-    const enc = b32.enc(encode(state));
-    history.replaceState(null, '', '#' + enc);
-    const url = location.href, prefix = url.slice(0, url.indexOf('#') + 1);
-    try {
-      const qr = qrcode(0, 'L'); qr.addData(prefix, 'Byte'); qr.addData(enc, 'Alphanumeric'); qr.make();
-      $('#qr').innerHTML = qr.createSvgTag({ cellSize: 6, margin: 2 });
-    } catch (e) { $('#qr').innerHTML = `<span class="small">QR unavailable</span>`; }
+    const enc = b32enc(encode(state)); history.replaceState(null, '', '#' + enc);
+    const url = location.href;
+    try { const q = qrcode(); q.addData(url.slice(0, url.indexOf('#') + 1), 'Byte'); q.addData(enc, 'Alphanumeric'); q.make(); $('#qr').innerHTML = q.createSvgTag({ cellSize: 6, margin: 2 }); }
+    catch { $('#qr').innerHTML = '<span class="small">QR unavailable</span>'; }
   }, 150);
 }
-function save() { try { localStorage.setItem('budget16', JSON.stringify(state)); localStorage.setItem('viewPrefs', JSON.stringify({ period: state.period })); } catch {} }
-function viewPrefs() { try { const p = JSON.parse(localStorage.getItem('viewPrefs')); return p && PERIODS[p.period] ? p : { period: 0 }; } catch { return { period: 0 }; } }
+const save = () => { try { localStorage.b = JSON.stringify(state); localStorage.period = state.period; } catch {} };
+const viewPref = () => PERIODS[localStorage.period] ? +localStorage.period : 0;
 
-// ---------- diff ----------
+// ---------- incoming link ----------
 function diff(a, b) {
-  const out = [];
+  const out = [], n = Math.max(a.people.length, b.people.length);
   if (a.people.length !== b.people.length) out.push(`people: ${a.people.length} → ${b.people.length}`);
-  const splitName = s => ['equal', 'income', 'custom ' + s.people.map(p => p.pct + '%').join('/')][s.split || 0];
+  const splitName = s => ['equal', 'income', 'custom ' + s.people.map(p => p.pct + '%').join('/')][s.split];
   if (splitName(a) !== splitName(b)) out.push(`split: ${splitName(a)} → ${splitName(b)}`);
-  const n = Math.max(a.people.length, b.people.length);
-  const ownerName = i => i === 0 ? 'Household' : ((b.people[i - 1] || a.people[i - 1] || {}).init || (COLOURS[i - 1] ? COLOURS[i - 1][0] : `Person ${i}`));
-  a.people.forEach((p, i) => { const q = b.people[i]; if (q && (p.init || '') !== (q.init || '')) out.push(`${COLOURS[i][0]}: initials ${p.init || '(none)'} → ${q.init || '(none)'}`); });
-  const lines = (s, kind, i) => { const o = i === 0 ? 'H' : (s.people[i - 1] || {}).id; return (s[kind] || []).filter(x => x.owner === o); };
-  for (let i = 0; i <= n; i++) for (const kind of ['incomes', 'expenses', 'savings']) {
-    const tags = TAGS[kind], la = lines(a, kind, i), lb = lines(b, kind, i);
-    const label = x => `${kind === 'savings' ? 'saving ' : ''}${tags[x.tag][1]} $${amtDecode(x.code)}/wk`;
-    // match identical lines first, then pair leftovers by tag as "changed", rest are added/removed
-    const key = x => x.tag + ':' + x.code;
-    const pool = new Map(); for (const y of lb) pool.set(key(y), (pool.get(key(y)) || 0) + 1);
-    const rem = [], add = [];
-    for (const x of la) { const k = key(x); if (pool.get(k)) pool.set(k, pool.get(k) - 1); else rem.push(x); }
-    // rebuild adds: everything in lb not consumed by a match
-    const consumed = new Map(); for (const x of la) { const k = key(x); if (!rem.includes(x)) consumed.set(k, (consumed.get(k) || 0) + 1); }
-    for (const y of lb) { const k = key(y); if (consumed.get(k)) consumed.set(k, consumed.get(k) - 1); else add.push(y); }
-    for (const x of rem) { const j = add.findIndex(y => y.tag === x.tag); if (j >= 0) { out.push(`${ownerName(i)}: ${label(x)} → ${label(add[j])}`); add.splice(j, 1); } else out.push(`${ownerName(i)}: − ${label(x)}`); }
-    for (const y of add) out.push(`${ownerName(i)}: + ${label(y)}`);
+  a.people.forEach((p, i) => { const q = b.people[i]; if (q && p.init !== q.init) out.push(`${COLOURS[i][0]}: initials ${p.init || '(none)'} → ${q.init || '(none)'}`); });
+  const who = i => i ? (b.people[i - 1] || a.people[i - 1]).init || COLOURS[i - 1][0] : 'Household';
+  for (let i = 0; i <= n; i++) for (const k of KINDS) {
+    const o = i ? (b.people[i - 1] || a.people[i - 1]).id : 'H', la = of(k, i ? (a.people[i - 1] || {}).id : 'H', a), lb = of(k, i ? (b.people[i - 1] || {}).id : 'H', b);
+    const label = x => `${k === 's' ? 'saving ' : ''}${TAGS[k][x.tag][1]} $${amtDecode(x.code)}/wk`, key = x => x.tag + ':' + x.code;
+    // identical lines match first; leftovers pair by tag as "changed"; the rest are added or removed
+    const pool = lb.map(key), rem = [], add = [...lb];
+    for (const x of la) { const j = pool.indexOf(key(x)); if (j >= 0) { pool[j] = null; add[j] = null; } else rem.push(x); }
+    const adds = add.filter(Boolean);
+    for (const x of rem) { const j = adds.findIndex(y => y.tag === x.tag); if (j >= 0) { out.push(`${who(i)}: ${label(x)} → ${label(adds[j])}`); adds.splice(j, 1); } else out.push(`${who(i)}: − ${label(x)}`); }
+    for (const y of adds) out.push(`${who(i)}: + ${label(y)}`);
   }
   return out;
 }
-function showIncoming(local, incoming, hash) {
-  const d = diff(local, incoming), box = $('#incoming');
-  box.innerHTML = `<b>Incoming link differs from your saved budget</b> (${d.length} change${d.length === 1 ? '' : 's'}):<br>` +
-    d.map(esc).join('<br>') + `<br><button type="button" id="takeTheirs">Take theirs</button> <button type="button" id="keepMine">Keep mine</button>`;
+function showIncoming(local, incoming) {
+  const d = diff(local, incoming), box = $('#incoming'), list = d.map(esc).join('<br>');
+  box.innerHTML = `<b>Incoming link differs from your saved budget</b> (${d.length} change${d.length === 1 ? '' : 's'}):<br>${list}<br><button type="button" id="take">Take theirs</button> <button type="button" id="keep">Keep mine</button>`;
   box.hidden = false;
-  $('#takeTheirs').onclick = () => { state = incoming; box.innerHTML = `<b>Loaded incoming link.</b> Changes from your previous version:<br>` + d.map(esc).join('<br>') + `<br><button type="button" id="dismiss">Dismiss</button>`; $('#dismiss').onclick = () => { box.hidden = true; }; render(); };
-  $('#keepMine').onclick = () => { box.hidden = true; state = local; render(); };
+  $('#take').onclick = () => { state = incoming; box.innerHTML = `<b>Loaded incoming link.</b> Changes from your previous version:<br>${list}<br><button type="button" id="dismiss">Dismiss</button>`; $('#dismiss').onclick = () => { box.hidden = true; }; render(); };
+  $('#keep').onclick = () => { box.hidden = true; state = local; render(); };
   state = local; render();
 }
-
 function load() {
   const hash = location.hash.slice(1);
-  let local = null;
-  try { const s = localStorage.getItem('budget16'); if (s) local = JSON.parse(s); } catch {}
-  if (hash) {
-    let incoming;
-    try { incoming = decode(b32.dec(hash)); } catch (e) { alert('Could not read budget from link: ' + e.message); incoming = null; }
-    if (incoming) {
-      if (local && b32.enc(encode(local)) !== hash) { showIncoming(local, incoming, hash); return; }
-      state = incoming; return;
-    }
-  }
-  if (local) { state = local; return; }
-  state = defaultState();
-  state.people[0].init = 'MB'; state.people[1].init = 'CT';
-  const [m, c] = state.people.map(p => p.id);
-  const inc = (owner, tag, amt) => state.incomes.push({ id: uid(), owner, tag: tagIndex(INCOME_TAGS, tag), code: amtEncode(amt, false) });
-  const exp = (owner, tag, amt) => state.expenses.push({ id: uid(), owner, tag: tagIndex(EXPENSE_TAGS, tag), code: amtEncode(amt, true) });
-  inc(m, 'Salary', 800); inc(c, 'Salary', 2076.88);
-  exp('H', 'Groceries', 75); exp('H', 'Electricity', 65); exp('H', 'Water', 0); exp('H', 'Internet', 11.25); exp('H', 'Buffer', 20);
-  exp(m, 'Rent', 180); exp(m, 'Gym', 19); exp(m, 'Dance classes', 60); exp(m, 'Streaming', 5); exp(m, 'Pharmacy', 20); exp(m, 'Public transport', 60); exp(m, 'Fun money', 75);
-  const sav = (owner, tag, amt) => state.savings.push({ id: uid(), owner, tag: tagIndex(SAVINGS_TAGS, tag), code: amtEncode(amt, true) });
-  sav(m, 'Holiday', 60); sav(c, 'Holiday', 200); sav(c, 'Emergency fund', 500); sav('H', 'House deposit', 0);
-  exp(c, 'Rent', 300); exp(c, 'Gym', 20); exp(c, 'Fuel', 100); exp(c, 'Streaming', 5); exp(c, 'Pharmacy', 5); exp(c, 'Health insurance', 45); exp(c, 'AI tools', 25); exp(c, 'Fun money', 75);
+  let local = null, incoming = null;
+  try { local = JSON.parse(localStorage.b); } catch {}
+  if (hash) try { incoming = decode(b32dec(hash)); } catch (e) { alert('Could not read budget from link: ' + e.message); }
+  if (incoming && local && b32enc(encode(local)) !== hash) return showIncoming(local, incoming);
+  state = incoming || local || defaultState(); render();
 }
-// hashchange fires when a link is pasted into this tab; our own replaceState does not trigger it
-window.addEventListener('hashchange', () => { load(); if ($('#incoming').hidden) render(); });
-load(); if ($('#incoming').hidden) render();
+onhashchange = load; // a link pasted into an open tab
+load();
 </script>
 </body>
 </html>
