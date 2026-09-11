@@ -334,8 +334,11 @@ function render() {
     html += `<div class="col" data-owner="${o}" style="border-color:${isH ? 'var(--strong)' : pcol(p)}"><h3>` +
       (isH ? 'Shared' : `${swatch(pcol(p))} <input type="text" data-f="init" maxlength="2" placeholder="${COLOURS[pidx(p)][0]}" value="${p.init}" title="initials" style="width:3em;text-transform:uppercase"> <button type="button" data-act="delPerson">x</button>`) +
       `</h3><div class="tabs">${tabs.map((n, i) => `<button type="button" data-tab="${i}"${t === i ? ' class="on"' : ''}>${n}</button>`).join('')}</div><div class="sheet">${sheets[t]()}</div>` +
-      `<div class="summary">Income ${fmt(row.i)} &minus; expenses ${fmt(row.e)} &minus; savings ${fmt(row.s)} = <b class="${cls(net)}">${fmt(net)}</b> /week` +
-      (row.take ? `<div class="small">Share of household net: <span class="neg">${fmt(row.take)}</span> /week</div>` : '') + `</div></div>`;
+      `<div class="summary">` +
+      // shared: each person's own remainder, their contribution to the shared shortfall in brackets, then the shared lines, then what the household has left
+      (isH ? cw.rows.filter(r => !r.isH && !r.isTotal).map(r => `${r.name} ${fmt(r.i - r.e - r.s)} (${fmt(-r.take)}) + `).join('') : '') +
+      `Income ${fmt(row.i)} &minus; expenses ${fmt(row.e)} &minus; savings ${fmt(row.s)} = <b class="${cls(isH ? cw.rows.at(-1).left : net)}">${fmt(isH ? cw.rows.at(-1).left : net)}</b> /week` +
+      (row.take ? `<div class="small">To shared: <span class="neg">${fmt(-row.take)}</span> /week</div>` : '') + `</div></div>`;
   }
   const track = $('#track'), idx = curIndex();
   track.innerHTML = html; track.scrollLeft = idx * track.clientWidth; updatePos();
