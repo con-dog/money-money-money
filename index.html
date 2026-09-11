@@ -247,7 +247,7 @@ const amtDecode = c => c & 512 ? (c & 511) * 10 : c;
 
 // ---------- state ----------
 const uid = () => Math.random().toString(36).slice(2, 7);
-const defaultState = () => ({ period: 0, split: 0, people: [{ id: uid(), init: '', pct: 50 }, { id: uid(), init: '', pct: 50 }], l: { i: [], e: [], s: [] } }); // l: lines {id, owner, tag, code}
+const defaultState = () => ({ period: 0, split: 0, people: [{ id: uid(), init: '', pct: 0 }, { id: uid(), init: '', pct: 0 }], l: { i: [], e: [], s: [] } }); // l: lines {id, owner, tag, code}
 let state = defaultState();
 const people = () => state.people, owners = s => ['H', ...s.people.map(p => p.id)];
 const pidx = p => people().indexOf(p);
@@ -293,8 +293,7 @@ function calc(days = PERIODS[state.period][1]) {
 const $ = s => document.querySelector(s);
 const fmt = n => (n < 0 ? '-' : '') + Math.abs(n).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 const cls = n => n < 0 ? 'neg' : 'pos';
-const esc = s => String(s).replace(/[&<>"]/g, c => `&#${c.charCodeAt(0)};`);
-const opt = (v, label, on) => `<option value="${v}"${on ? ' selected' : ''}>${esc(label)}</option>`;
+const opt = (v, label, on) => `<option value="${v}"${on ? ' selected' : ''}>${label}</option>`;
 const swatch = c => `<span style="display:inline-block;width:12px;height:12px;background:${c};vertical-align:middle"></span>`;
 const sortMode = { i: 0, e: 0, s: 0 }; // view only: 0 as entered, 1 highest first, 2 lowest first
 const activeTab = {}; // owner id -> tab index (view only)
@@ -312,11 +311,11 @@ function lineTable(kind, owner) {
   for (const x of rows) {
     const a = amtDecode(x.code), n = note && note.id === x.id;
     html += `<tr data-id="${x.id}"><td><div class="tagcell"><span class="drag${m ? ' off' : ''}" data-drag title="${m ? 'clear sort to reorder' : 'drag to reorder'}">⠿</span><span class="gi" title="${TAGS[kind][x.tag][0]}">${ICON[TAGS[kind][x.tag][0]]}</span>${tagSelect(kind, x.tag)}</div></td>` +
-      `<td><input type="number" data-f="amt" value="${a}" min="0" max="${AMT_MAX}" step="${a > 511 ? 10 : 1}"${n ? ` class="snapped" title="${esc(note.text)}"` : ''}></td>` +
+      `<td><input type="number" data-f="amt" value="${a}" min="0" max="${AMT_MAX}" step="${a > 511 ? 10 : 1}"${n ? ' class="snapped"' : ''}></td>` +
       `<td><select data-f="conv">${CONV.map((c, i) => opt(i, c[0], !i)).join('')}</select></td><td><button type="button" data-act="del">x</button></td></tr>`;
   }
-  html += `<tr><td colspan="4">${items.length < KMAX[kind] ? `<button type="button" data-act="add">+ ${name.toLowerCase()}</button>` : `<span class="small">max ${KMAX[kind]}</span>`}</td></tr></table>`;
-  return html + (note && items.some(x => x.id === note.id) ? `<div class="small">${esc(note.text)}</div>` : '');
+  html += `<tr><td colspan="4">${items.length < KMAX[kind] ? `<button type="button" data-act="add">+ ${name.toLowerCase()}</button>` : ''}</td></tr></table>`;
+  return html + (note && items.some(x => x.id === note.id) ? `<div class="small">${note.text}</div>` : '');
 }
 function splitTable(share) {
   const opts = [['Equal', 'Straight split between people'], ['Income', "In proportion to each person's income"], ['Custom', "Set each person's share"]];
@@ -344,12 +343,12 @@ function render() {
 
   const bar = c => c ? ` style="border-left:6px solid ${c}"` : '', perLabel = 'per ' + PERIODS[state.period][0].toLowerCase();
   $('#forecast').innerHTML = `<tr><th>Bucket</th><th>Income</th><th>Expenses</th><th>Savings</th><th>Household share</th><th>Left over</th></tr>` +
-    c.rows.map(r => `<tr class="${r.isTotal ? 'total' : ''}${!r.isH && !r.isTotal && r.left < 0 ? ' red' : ''}"><td${bar(r.colour)}>${esc(r.name)}</td><td>${fmt(r.i)}</td><td>${fmt(r.e)}</td><td>${fmt(r.s)}</td><td>${r.isTotal || r.isH ? '' : fmt(r.take)}</td><td class="${cls(r.left)}">${fmt(r.left)}</td></tr>`).join('') +
+    c.rows.map(r => `<tr class="${r.isTotal ? 'total' : ''}${!r.isH && !r.isTotal && r.left < 0 ? ' red' : ''}"><td${bar(r.colour)}>${r.name}</td><td>${fmt(r.i)}</td><td>${fmt(r.e)}</td><td>${fmt(r.s)}</td><td>${r.isTotal || r.isH ? '' : fmt(r.take)}</td><td class="${cls(r.left)}">${fmt(r.left)}</td></tr>`).join('') +
     `<tr><td colspan="6" class="small">${perLabel}</td></tr>`;
   // every savings line across all buckets for the view period, largest first
   const sv = state.l.s.map(x => ({ x, amt: per(x, c.days), p: people().find(q => q.id === x.owner) })).sort((a, b) => b.amt - a.amt);
   $('#savsum').hidden = !sv.length;
-  $('#savsum').innerHTML = sv.length ? `<tr><th>Who</th><th>Saving</th><th>${perLabel}</th></tr>` + sv.map(v => `<tr><td${bar(v.p && pcol(v.p))}>${v.p ? esc(pname(v.p)) : 'Shared'}</td><td>${esc(TAGS.s[v.x.tag][1])}</td><td>${fmt(v.amt)}</td></tr>`).join('') +
+  $('#savsum').innerHTML = sv.length ? `<tr><th>Who</th><th>Saving</th><th>${perLabel}</th></tr>` + sv.map(v => `<tr><td${bar(v.p && pcol(v.p))}>${v.p ? pname(v.p) : 'Shared'}</td><td>${TAGS.s[v.x.tag][1]}</td><td>${fmt(v.amt)}</td></tr>`).join('') +
     `<tr class="total"><td colspan="2">TOTAL</td><td>${fmt(sv.reduce((a, v) => a + v.amt, 0))}</td></tr>` : '';
   updateLink();
 }
@@ -414,14 +413,12 @@ const go = d => { const t = $('#track'), n = t.children.length; t.scrollTo({ lef
 $('#track').onscroll = updatePos;
 $('#prev').onclick = () => go(-1);
 $('#next').onclick = () => go(1);
-onresize = () => { const t = $('#track'); t.scrollLeft = curIndex() * t.clientWidth; };
 $('#period').innerHTML = PERIODS.map((p, i) => opt(i, p[0])).join('');
 $('#period').onchange = e => { state.period = +e.target.value; render(); };
 $('#addPerson').onclick = () => { if (people().length >= 8) return alert('Max 8 people'); people().push({ id: uid(), init: '', pct: 0 }); render(); };
 $('#shareBtn').onclick = async () => {
   const url = location.href, msg = $('#shareMsg');
-  try { if (navigator.share) { await navigator.share({ url }); msg.textContent = 'shared'; } else throw 0; }
-  catch { try { await navigator.clipboard.writeText(url); msg.textContent = 'link copied'; } catch { msg.textContent = url; } }
+  try { await navigator.share({ url }); msg.textContent = 'shared'; } catch { await navigator.clipboard.writeText(url); msg.textContent = 'link copied'; }
   setTimeout(() => { msg.innerHTML = '&nbsp;'; }, 2000);
 };
 
@@ -431,7 +428,7 @@ $('#shareBtn').onclick = async () => {
 function encode(s) {
   const bits = [], w = (v, n) => { for (let i = n - 1; i >= 0; i--) bits.push((v >> i) & 1); };
   w(VERSION, 4); w(s.people.length - 1, 3); w(s.split, 2);
-  for (const p of s.people) { const init = cleanInit(p.init); for (let i = 0; i < 2; i++) w(init[i] ? init.charCodeAt(i) - 65 : 26, 5); if (s.split === 2) w(Math.max(0, Math.min(100, Math.round(p.pct) || 0)), 7); }
+  for (const p of s.people) { for (let i = 0; i < 2; i++) w(p.init[i] ? p.init.charCodeAt(i) - 65 : 26, 5); if (s.split === 2) w(Math.max(0, Math.min(100, Math.round(p.pct) || 0)), 7); }
   for (const o of owners(s)) for (const k of KINDS) { const ls = of(k, o, s).slice(0, KMAX[k]); w(ls.length, KBITS[k]); for (const x of ls) { w(x.tag, 6); w(x.code, 10); } }
   const out = new Uint8Array(Math.ceil(bits.length / 8)); bits.forEach((b, i) => { out[i >> 3] |= b << (7 - (i & 7)); }); return out;
 }
@@ -439,7 +436,7 @@ function decode(bytes) {
   let p = 0; const r = n => { let v = 0; for (let i = 0; i < n; i++, p++) v = (v << 1) | (((bytes[p >> 3] || 0) >> (7 - (p & 7))) & 1); return v >>> 0; };
   const v = r(4); if (v !== VERSION) throw new Error('unknown version ' + v);
   const s = { period: viewPref(), people: [], l: { i: [], e: [], s: [] } }, np = r(3) + 1; s.split = r(2);
-  for (let i = 0; i < np; i++) { let init = ''; for (let k = 0; k < 2; k++) { const c = r(5); if (c < 26) init += String.fromCharCode(65 + c); } s.people.push({ id: uid(), init, pct: s.split === 2 ? r(7) : i === np - 1 ? 100 - Math.floor(100 / np) * (np - 1) : Math.floor(100 / np) }); }
+  for (let i = 0; i < np; i++) { let init = ''; for (let k = 0; k < 2; k++) { const c = r(5); if (c < 26) init += String.fromCharCode(65 + c); } s.people.push({ id: uid(), init, pct: s.split === 2 ? r(7) : 0 }); }
   for (const o of owners(s)) for (const k of KINDS) { const n = r(KBITS[k]); for (let i = 0; i < n; i++) s.l[k].push({ id: uid(), owner: o, tag: r(6), code: r(10) }); }
   return s;
 }
@@ -454,8 +451,7 @@ function updateLink() {
   linkTimer = setTimeout(() => {
     const enc = b32enc(encode(state)); history.replaceState(null, '', '#' + enc);
     const url = location.href;
-    try { const q = qrcode(); q.addData(url.slice(0, url.indexOf('#') + 1), 'Byte'); q.addData(enc, 'Alphanumeric'); q.make(); $('#qr').innerHTML = q.createSvgTag({ cellSize: 6, margin: 2 }); }
-    catch { $('#qr').innerHTML = '<span class="small">QR unavailable</span>'; }
+    const q = qrcode(); q.addData(url.slice(0, url.indexOf('#') + 1), 'Byte'); q.addData(enc, 'Alphanumeric'); q.make(); $('#qr').innerHTML = q.createSvgTag({ cellSize: 6, margin: 2 });
   }, 150);
 }
 const save = () => { try { localStorage.b = JSON.stringify(state); localStorage.period = state.period; } catch {} };
@@ -482,7 +478,7 @@ function diff(a, b) {
   return out;
 }
 function showIncoming(local, incoming) {
-  const d = diff(local, incoming), box = $('#incoming'), list = d.map(esc).join('<br>');
+  const d = diff(local, incoming), box = $('#incoming'), list = d.join('<br>');
   box.innerHTML = `<b>Incoming link differs from your saved budget</b> (${d.length} change${d.length === 1 ? '' : 's'}):<br>${list}<br><button type="button" id="take">Take theirs</button> <button type="button" id="keep">Keep mine</button>`;
   box.hidden = false;
   $('#take').onclick = () => { state = incoming; box.innerHTML = `<b>Loaded incoming link.</b> Changes from your previous version:<br>${list}<br><button type="button" id="dismiss">Dismiss</button>`; $('#dismiss').onclick = () => { box.hidden = true; }; render(); };
