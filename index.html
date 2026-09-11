@@ -125,87 +125,67 @@
 </section>
 </main>
 <script>
-/* Compact QR encoder: a port of qrcode-generator 1.4.4 by Kazuhiko Arase (MIT). Byte + Alphanumeric + Numeric
-   modes, error correction level L, automatic version and mask, SVG output. Produces the same modules as the original. */
+/* Compact QR encoder, a port of qrcode-generator 1.4.4 by Kazuhiko Arase (MIT). Byte and Alphanumeric segments,
+   error correction level L, automatic version and mask, SVG output. Same modules as the original. */
 const qrcode = () => {
-  const AP = [[],[6,18],[6,22],[6,26],[6,30],[6,34],[6,22,38],[6,24,42],[6,26,46],[6,28,50],[6,30,54],[6,32,58],[6,34,62],[6,26,46,66],[6,26,48,70],[6,26,50,74],[6,30,54,78],[6,30,56,82],[6,30,58,86],[6,34,62,90],[6,28,50,72,94],[6,26,50,74,98],[6,30,54,78,102],[6,28,54,80,106],[6,32,58,84,110],[6,30,58,86,114],[6,34,62,90,118],[6,26,50,74,98,122],[6,30,54,78,102,126],[6,26,52,78,104,130],[6,30,56,82,108,134],[6,34,60,86,112,138],[6,30,58,86,114,142],[6,34,62,90,118,146],[6,30,54,78,102,126,150],[6,24,50,76,102,128,154],[6,28,54,80,106,132,158],[6,32,58,84,110,136,162],[6,26,54,82,110,138,166],[6,30,58,86,114,142,170]];
-  // level L RS blocks per version: [count,total,data, count,total,data]
-  const RS = [[1,26,19],[1,44,34],[1,70,55],[1,100,80],[1,134,108],[2,86,68],[2,98,78],[2,121,97],[2,146,116],[2,86,68,2,87,69],[4,101,81],[2,116,92,2,117,93],[4,133,107],[3,145,115,1,146,116],[5,109,87,1,110,88],[5,122,98,1,123,99],[1,135,107,5,136,108],[5,150,120,1,151,121],[3,141,113,4,142,114],[3,135,107,5,136,108],[4,144,116,4,145,117],[2,139,111,7,140,112],[4,151,121,5,152,122],[6,147,117,4,148,118],[8,132,106,4,133,107],[10,142,114,2,143,115],[8,152,122,4,153,123],[3,147,117,10,148,118],[7,146,116,7,147,117],[5,145,115,10,146,116],[13,145,115,3,146,116],[17,145,115],[17,145,115,1,146,116],[13,145,115,6,146,116],[12,151,121,7,152,122],[6,151,121,14,152,122],[17,152,122,4,153,123],[4,152,122,18,153,123],[20,147,117,4,148,118],[19,148,118,6,149,119]];
-  const EXP = new Uint8Array(512), LOG = new Uint8Array(256);
+  // level L Reed-Solomon blocks per version: count1, dataBytes1, ecBytes, count2 (group 2 blocks carry one extra data byte)
+  const RS = '1,19,7,0,1,34,10,0,1,55,15,0,1,80,20,0,1,108,26,0,2,68,18,0,2,78,20,0,2,97,24,0,2,116,30,0,2,68,18,2,4,81,20,0,2,92,24,2,4,107,26,0,3,115,30,1,5,87,22,1,5,98,24,1,1,107,28,5,5,120,30,1,3,113,28,4,3,107,28,5,4,116,28,4,2,111,28,7,4,121,30,5,6,117,30,4,8,106,26,4,10,114,28,2,8,122,30,4,3,117,30,10,7,116,30,7,5,115,30,10,13,115,30,3,17,115,30,0,17,115,30,1,13,115,30,6,12,121,30,7,6,121,30,14,17,122,30,4,4,122,30,18,20,117,30,4,19,118,30,6'.split(',').map(Number);
+  const EXP = [], LOG = [];
   for (let i = 0, x = 1; i < 255; i++) { EXP[i] = x; LOG[x] = i; x <<= 1; if (x & 256) x ^= 285; }
-  for (let i = 255; i < 512; i++) EXP[i] = EXP[i - 255];
-  const ALNUM = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:';
-  const MODE = { Numeric: 1, Alphanumeric: 2, Byte: 4 };
-  const segs = [];
-  let N = 0, M = null;
-
-  const bitlen = x => { let n = 0; while (x) { n++; x >>>= 1; } return n; };
-  const bch = (d, g, s) => { let v = d << s; while (bitlen(v) >= bitlen(g)) v ^= g << (bitlen(v) - bitlen(g)); return (d << s) | v; };
-  const lenBits = (m, v) => [[10, 9, 8], [12, 11, 16], [14, 13, 16]][v < 10 ? 0 : v < 27 ? 1 : 2][m === 1 ? 0 : m === 2 ? 1 : 2];
-  const masks = [(i, j) => (i + j) % 2 === 0, (i, j) => i % 2 === 0, (i, j) => j % 3 === 0, (i, j) => (i + j) % 3 === 0,
-    (i, j) => ((i >> 1) + Math.floor(j / 3)) % 2 === 0, (i, j) => (i * j) % 2 + (i * j) % 3 === 0,
-    (i, j) => ((i * j) % 2 + (i * j) % 3) % 2 === 0, (i, j) => ((i * j) % 3 + (i + j) % 2) % 2 === 0];
-
-  // bit writer
-  const bits = (v) => {
-    const buf = [], put = (x, n) => { for (let i = n - 1; i >= 0; i--) buf.push((x >>> i) & 1); };
-    for (const [data, mode] of segs) {
-      const m = MODE[mode]; put(m, 4); put(data.length, lenBits(m, v));
-      if (m === 4) for (const ch of data) put(ch.charCodeAt(0) & 255, 8);
-      else if (m === 2) { let i = 0; for (; i + 1 < data.length; i += 2) put(ALNUM.indexOf(data[i]) * 45 + ALNUM.indexOf(data[i + 1]), 11); if (i < data.length) put(ALNUM.indexOf(data[i]), 6); }
-      else { let i = 0; for (; i + 2 < data.length; i += 3) put(+data.substr(i, 3), 10); const r = data.length - i; if (r === 1) put(+data.substr(i), 4); else if (r === 2) put(+data.substr(i), 7); }
+  const AL = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:', segs = [];
+  let N, M;
+  const blocks = v => { const [c1, d1, ec, c2] = RS.slice(v * 4 - 4, v * 4), o = []; for (let i = 0; i < c1 + c2; i++) o.push(i < c1 ? d1 : d1 + 1); return [o, ec]; };
+  const bitlen = x => x.toString(2).length;
+  const bch = (d, g, s) => { let v = d << s; while (v >= 1 << (bitlen(g) - 1)) v ^= g << (bitlen(v) - bitlen(g)); return d << s | v; };
+  // data bits for version v as a '0'/'1' string
+  const bits = v => {
+    let s = '';
+    const put = (x, n) => { s += x.toString(2).padStart(n, '0'); };
+    for (const [d, alnum] of segs) {
+      put(alnum ? 2 : 4, 4); put(d.length, (v < 10 ? [9, 8] : v < 27 ? [11, 16] : [13, 16])[alnum ? 0 : 1]);
+      if (alnum) { let i = 0; for (; i + 1 < d.length; i += 2) put(AL.indexOf(d[i]) * 45 + AL.indexOf(d[i + 1]), 11); if (i < d.length) put(AL.indexOf(d[i]), 6); }
+      else for (const ch of d) put(ch.charCodeAt(0) & 255, 8);
     }
-    return buf;
+    return s;
   };
-  const blocks = v => { const t = RS[v - 1], out = []; for (let i = 0; i < t.length; i += 3) for (let k = 0; k < t[i]; k++) out.push([t[i + 1], t[i + 2]]); return out; };
-
-  // data + error correction bytes, interleaved
-  const codewords = (v) => {
-    const bl = blocks(v), total = bl.reduce((s, b) => s + b[1], 0), buf = bits(v);
-    if (buf.length > total * 8) throw 'overflow';
-    if (buf.length + 4 <= total * 8) buf.push(0, 0, 0, 0);
-    while (buf.length % 8) buf.push(0);
-    const bytes = []; for (let i = 0; i < buf.length; i += 8) bytes.push(parseInt(buf.slice(i, i + 8).join(''), 2));
+  const codewords = v => {
+    const [bl, ec] = blocks(v), total = bl.reduce((a, b) => a + b, 0);
+    let s = bits(v); s += '0'.repeat(Math.min(4, total * 8 - s.length)); s += '0'.repeat((8 - s.length % 8) % 8);
+    const bytes = []; for (let i = 0; i < s.length; i += 8) bytes.push(parseInt(s.substr(i, 8), 2));
     for (let p = 0; bytes.length < total;) bytes.push(p++ % 2 ? 17 : 236);
-    let off = 0, maxD = 0, maxE = 0; const dc = [], ec = [];
-    for (const [tot, dat] of bl) {
-      const e = tot - dat, d = bytes.slice(off, off + dat); off += dat; maxD = Math.max(maxD, dat); maxE = Math.max(maxE, e);
-      let g = [1]; for (let i = 0; i < e; i++) { const n = new Array(g.length + 1).fill(0); for (let k = 0; k < g.length; k++) { n[k] ^= g[k]; n[k + 1] ^= EXP[LOG[g[k]] + i]; } g = n; }
-      const r = d.concat(new Array(e).fill(0));
-      for (let i = 0; i < dat; i++) { const c = r[i]; if (c) for (let k = 0; k < g.length; k++) r[i + k] ^= EXP[LOG[g[k]] + LOG[c]]; }
-      dc.push(d); ec.push(r.slice(dat));
+    let g = [1]; for (let i = 0; i < ec; i++) { const n = [0]; g.forEach((c, k) => { n[k] ^= c; n[k + 1] = EXP[(LOG[c] + i) % 255]; }); g = n; }
+    let off = 0; const dc = [], eb = [];
+    for (const dat of bl) {
+      const d = bytes.slice(off, off + dat), r = d.concat(Array(ec).fill(0)); off += dat;
+      for (let i = 0; i < dat; i++) { const c = r[i]; if (c) g.forEach((gk, k) => { r[i + k] ^= EXP[(LOG[gk] + LOG[c]) % 255]; }); }
+      dc.push(d); eb.push(r.slice(dat));
     }
-    const out = [];
+    const out = [], maxD = Math.max(...bl);
     for (let i = 0; i < maxD; i++) for (const d of dc) if (i < d.length) out.push(d[i]);
-    for (let i = 0; i < maxE; i++) for (const e of ec) if (i < e.length) out.push(e[i]);
+    for (let i = 0; i < ec; i++) for (const e of eb) out.push(e[i]);
     return out;
   };
-
-  // build the module grid for version v with mask k; test=true leaves format/version bits light (for scoring)
+  // module grid for version v with mask k; test=true leaves format/version bits light (for scoring)
   const build = (v, data, k, test) => {
-    N = v * 4 + 17; M = Array.from({ length: N }, () => new Array(N).fill(null));
-    const probe = (r0, c0) => { for (let r = -1; r <= 7; r++) for (let c = -1; c <= 7; c++) { if (r0 + r < 0 || r0 + r >= N || c0 + c < 0 || c0 + c >= N) continue;
-      M[r0 + r][c0 + c] = (r >= 0 && r <= 6 && (c === 0 || c === 6)) || (c >= 0 && c <= 6 && (r === 0 || r === 6)) || (r >= 2 && r <= 4 && c >= 2 && c <= 4); } };
-    probe(0, 0); probe(N - 7, 0); probe(0, N - 7);
-    const ap = AP[v - 1];
-    for (const r of ap) for (const c of ap) if (M[r][c] === null) for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) M[r + i][c + j] = Math.abs(i) === 2 || Math.abs(j) === 2 || (i === 0 && j === 0);
-    for (let i = 8; i < N - 8; i++) { if (M[i][6] === null) M[i][6] = i % 2 === 0; if (M[6][i] === null) M[6][i] = i % 2 === 0; }
-    const info = bch((1 << 3) | k, 0x537, 10) ^ 0x5412;
-    for (let i = 0; i < 15; i++) {
-      const b = !test && ((info >> i) & 1) === 1;
-      M[i < 6 ? i : i < 8 ? i + 1 : N - 15 + i][8] = b;
-      M[8][i < 8 ? N - i - 1 : i < 9 ? 15 - i : 14 - i] = b;
-    }
+    N = v * 4 + 17; M = Array.from({ length: N }, () => Array(N).fill(null));
+    const set = (r, c, b) => { if (r >= 0 && r < N && c >= 0 && c < N) M[r][c] = b; };
+    for (const [r0, c0] of [[0, 0], [N - 7, 0], [0, N - 7]]) for (let r = -1; r <= 7; r++) for (let c = -1; c <= 7; c++)
+      set(r0 + r, c0 + c, r >= 0 && r <= 6 && (c == 0 || c == 6) || c >= 0 && c <= 6 && (r == 0 || r == 6) || r >= 2 && r <= 4 && c >= 2 && c <= 4);
+    if (v > 1) { const n = (v / 7 | 0) + 2, step = v == 32 ? 26 : Math.ceil((v * 4 + 4) / (n * 2 - 2)) * 2, ap = [6]; for (let p = N - 7; ap.length < n; p -= step) ap.splice(1, 0, p);
+      for (const r of ap) for (const c of ap) if (M[r][c] === null) for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) M[r + i][c + j] = Math.abs(i) == 2 || Math.abs(j) == 2 || !i && !j; }
+    for (let i = 8; i < N - 8; i++) { if (M[i][6] === null) M[i][6] = !(i % 2); if (M[6][i] === null) M[6][i] = !(i % 2); }
+    const info = bch(8 | k, 0x537, 10) ^ 0x5412;
+    for (let i = 0; i < 15; i++) { const b = !test && (info >> i & 1) == 1; M[i < 6 ? i : i < 8 ? i + 1 : N - 15 + i][8] = b; M[8][i < 8 ? N - i - 1 : i < 9 ? 15 - i : 14 - i] = b; }
     M[N - 8][8] = !test;
-    if (v >= 7) { const vb = bch(v, 0x1f25, 12); for (let i = 0; i < 18; i++) { const b = !test && ((vb >> i) & 1) === 1; M[Math.floor(i / 3)][i % 3 + N - 11] = b; M[i % 3 + N - 11][Math.floor(i / 3)] = b; } }
+    if (v >= 7) { const vb = bch(v, 0x1f25, 12); for (let i = 0; i < 18; i++) { const b = !test && (vb >> i & 1) == 1; M[i / 3 | 0][i % 3 + N - 11] = b; M[i % 3 + N - 11][i / 3 | 0] = b; } }
+    const mask = [(i, j) => (i + j) % 2, (i, j) => i % 2, (i, j) => j % 3, (i, j) => (i + j) % 3, (i, j) => ((i >> 1) + (j / 3 | 0)) % 2, (i, j) => i * j % 2 + i * j % 3, (i, j) => (i * j % 2 + i * j % 3) % 2, (i, j) => (i * j % 3 + (i + j) % 2) % 2][k];
     let inc = -1, row = N - 1, bi = 7, by = 0;
     for (let col = N - 1; col > 0; col -= 2) {
-      if (col === 6) col--;
+      if (col == 6) col--;
       for (;;) {
         for (let c = 0; c < 2; c++) if (M[row][col - c] === null) {
-          let d = by < data.length && ((data[by] >>> bi) & 1) === 1;
-          if (masks[k](row, col - c)) d = !d;
-          M[row][col - c] = d; if (--bi < 0) { by++; bi = 7; }
+          M[row][col - c] = (by < data.length && (data[by] >> bi & 1) == 1) != !mask(row, col - c);
+          if (--bi < 0) { by++; bi = 7; }
         }
         row += inc; if (row < 0 || row >= N) { row -= inc; inc = -inc; break; }
       }
@@ -214,30 +194,29 @@ const qrcode = () => {
   const penalty = () => {
     let p = 0, dark = 0;
     for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
-      let same = 0; const d = M[r][c]; if (d) dark++;
-      for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { if ((!i && !j) || r + i < 0 || r + i >= N || c + j < 0 || c + j >= N) continue; if (M[r + i][c + j] === d) same++; }
-      if (same > 5) p += 3 + same - 5;
-      if (r < N - 1 && c < N - 1) { const n = M[r][c] + M[r + 1][c] + M[r][c + 1] + M[r + 1][c + 1]; if (n === 0 || n === 4) p += 3; }
-      if (c < N - 6 && M[r][c] && !M[r][c + 1] && M[r][c + 2] && M[r][c + 3] && M[r][c + 4] && !M[r][c + 5] && M[r][c + 6]) p += 40;
-      if (r < N - 6 && M[r][c] && !M[r + 1][c] && M[r + 2][c] && M[r + 3][c] && M[r + 4][c] && !M[r + 5][c] && M[r + 6][c]) p += 40;
+      let same = 0; const d = M[r][c]; dark += d;
+      for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) if ((i || j) && r + i >= 0 && r + i < N && c + j >= 0 && c + j < N && M[r + i][c + j] == d) same++;
+      if (same > 5) p += same - 2;
+      if (r < N - 1 && c < N - 1) { const n = M[r][c] + M[r + 1][c] + M[r][c + 1] + M[r + 1][c + 1]; if (!n || n == 4) p += 3; }
+      const run = (dr, dc) => (dr ? r < N - 6 : c < N - 6) && [1, 0, 1, 1, 1, 0, 1].every((b, i) => M[r + i * dr][c + i * dc] == !!b);
+      if (run(0, 1)) p += 40; if (run(1, 0)) p += 40;
     }
     return p + Math.abs(100 * dark / N / N - 50) / 5 * 10;
   };
-
   return {
-    addData: (data, mode) => segs.push([data, mode || 'Byte']),
+    addData: (d, mode) => segs.push([d, mode == 'Alphanumeric']),
     make() {
-      let v = 1; for (; v < 40; v++) if (bits(v).length <= blocks(v).reduce((s, b) => s + b[1], 0) * 8) break;
-      const data = codewords(v); let best = 0, bp = Infinity;
-      for (let k = 0; k < 8; k++) { build(v, data, k, true); const p = penalty(); if (p < bp) { bp = p; best = k; } }
-      build(v, data, best, false);
+      let v = 1; for (; v < 40; v++) { const [bl, ec] = blocks(v); if (bits(v).length <= bl.reduce((a, b) => a + b, 0) * 8) break; }
+      const data = codewords(v); let best = 0, bp = 1 / 0;
+      for (let k = 0; k < 8; k++) { build(v, data, k, 1); const p = penalty(); if (p < bp) { bp = p; best = k; } }
+      build(v, data, best, 0);
     },
     getModuleCount: () => N,
     isDark: (r, c) => M[r][c],
-    createSvgTag({ cellSize: s = 2, margin: m = s * 4 } = {}) {
+    createSvgTag({ cellSize: s = 2, margin: m = s * 4 }) {
       const w = N * s + 2 * m; let d = '';
-      for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (M[r][c]) d += `M${c * s + m},${r * s + m}h${s}v${s}h-${s}z`;
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${w}" viewBox="0 0 ${w} ${w}"><rect width="100%" height="100%" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+      for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (M[r][c]) d += `M${c * s + m} ${r * s + m}h${s}v${s}h-${s}z`;
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${w}" viewBox="0 0 ${w} ${w}"><rect width="100%" height="100%" fill="#fff"/><path d="${d}"/></svg>`;
     },
   };
 };
