@@ -61,6 +61,11 @@
   .red td { background: var(--neg-bg); }
   .total { font-weight: bold; }
   .snapped { outline: 2px solid var(--pos); }
+  .w-amt2 { width: 122px; }
+  .amt { display: flex; }
+  .amt input { min-width: 0; height: auto; }
+  .who { display: flex; flex-direction: column; width: 52px; flex: none; }
+  .who b { flex: 1; color: #fff; font-size: 0.75em; line-height: 1.5; text-align: center; white-space: nowrap; }
   .small { font-size: 0.85em; color: var(--muted); }
   #incoming { border: 2px solid var(--neg); padding: 6px; margin: 8px 0; }
   #share { text-align: center; margin: auto; padding: 12px; border: 3px solid var(--strong); background: #fff; }
@@ -75,7 +80,7 @@
   }
   @media (max-width: 360px) {
     .page { padding: 4px; } body { font-size: 12px; } .col { padding: 4px; }
-    .w-amt, .w-conv { width: 58px; } .w-del { width: 28px; }
+    .w-amt, .w-conv { width: 58px; } .w-del { width: 28px; } .w-amt2 { width: 104px; } .who { width: 46px; }
     td, th { padding: 1px 2px; }
   }
 </style>
@@ -304,14 +309,19 @@ function tagSelect(kind, val) {
   TAGS[kind].forEach((t, i) => { if (t[0] !== g) { html += (g ? '</optgroup>' : '') + `<optgroup label="${t[0]}">`; g = t[0]; } html += opt(i, t[1], i === val); });
   return html + '</optgroup></select>';
 }
-function lineTable(kind, owner) {
+function funding(cw) {
+  const h = cw.rows.at(-2), costs = h.e + h.s, f = costs ? Math.max(0, costs - h.i) / costs : 0;
+  return [{ name: 'shared income', colour: 'var(--border)', pct: Math.round((1 - f) * 100) }, ...people().map(p => ({ p, name: pname(p), colour: pcol(p), pct: Math.round(f * cw.share[p.id]) }))].filter(x => x.pct || x.p);
+}
+function lineTable(kind, owner, fund) {
   const items = of(kind, owner), m = sortMode[kind], name = KNAME[kind];
   const rows = m ? [...items].sort((a, b) => (m === 1 ? 1 : -1) * (amtDecode(b.code) - amtDecode(a.code))) : items;
-  let html = `<table data-kind="${kind}" data-owner="${owner}"><tr><th>${name}</th><th class="w-amt sortable" data-sort="${kind}" title="sort">$/week${['', ' ▼', ' ▲'][m]}</th><th class="w-conv">period</th><th class="w-del"></th></tr>`;
+  let html = `<table data-kind="${kind}" data-owner="${owner}"><tr><th>${name}</th><th class="${fund ? 'w-amt2' : 'w-amt'} sortable" data-sort="${kind}" title="sort">$/week${['', ' ▼', ' ▲'][m]}</th><th class="w-conv">period</th><th class="w-del"></th></tr>`;
   for (const x of rows) {
     const a = amtDecode(x.code), n = note && note.id === x.id;
     html += `<tr data-id="${x.id}"><td><div class="tagcell"><span class="${m ? 'drag off' : 'drag'}" data-drag title="${m ? 'clear sort to reorder' : 'drag to reorder'}">⠿</span><span class="gi" title="${TAGS[kind][x.tag][0]}">${ICON[TAGS[kind][x.tag][0]]}</span>${tagSelect(kind, x.tag)}</div></td>` +
-      `<td><input type="number" data-f="amt" value="${a}" min="0" max="${AMT_MAX}" step="${a > 511 ? 10 : 1}"${n ? ' class="snapped"' : ''}></td>` +
+      `<td>${fund ? '<div class="amt">' : ''}<input type="number" data-f="amt" value="${a}" min="0" max="${AMT_MAX}" step="${a > 511 ? 10 : 1}"${n ? ' class="snapped"' : ''}>` +
+      (fund ? `<div class="who">${fund.filter(x => x.p).map(x => `<b style="background:${x.colour}" title="${x.name}">${fmt(a * x.pct / 100)}</b>`).join('')}</div></div>` : '') + `</td>` +
       `<td><select data-f="conv">${CONV.map((c, i) => opt(i, c[0], !i)).join('')}</select></td><td><button type="button" data-act="del">x</button></td></tr>`;
   }
   html += `<tr><td colspan="4">${items.length < KMAX[kind] ? `<button type="button" data-act="add">+ ${name.toLowerCase()}</button>` : ''}</td></tr></table>`;
@@ -329,7 +339,8 @@ function render() {
   for (const o of owners(state)) {
     const isH = o === 'H', p = people().find(q => q.id === o), row = cw.rows[isH ? people().length : pidx(p)];
     const tabs = isH ? ['Split', 'Income', 'Expenses', 'Savings'] : ['Income', 'Expenses', 'Savings'], t = activeTab[o] || 0;
-    const sheets = [...(isH ? [() => splitTable(cw.share)] : []), ...KINDS.map(k => () => lineTable(k, o))];
+    const fund = isH ? funding(cw) : null;
+    const sheets = [...(isH ? [() => splitTable(cw.share)] : []), ...KINDS.map(k => () => lineTable(k, o, k !== 'i' && fund))];
     const net = row.i - row.e - row.s;
     html += `<div class="col" data-owner="${o}" style="border-color:${isH ? 'var(--strong)' : pcol(p)}"><h3>` +
       (isH ? 'Shared' : `${swatch(pcol(p))} <input type="text" data-f="init" maxlength="2" placeholder="${COLOURS[pidx(p)][0]}" value="${p.init}" title="initials" style="width:3em;text-transform:uppercase"> <button type="button" data-act="delPerson">x</button>`) +
@@ -338,8 +349,10 @@ function render() {
       // shared: each person's own remainder, their contribution to the shared shortfall in brackets, then the shared lines, then what the household has left
       (isH ? cw.rows.filter(r => !r.isH && !r.isTotal).map(r => `${r.name} ${fmt(r.i - r.e - r.s)} (${fmt(-r.take)}) + `).join('') : '') +
       `Income ${fmt(row.i)} &minus; expenses ${fmt(row.e)} &minus; savings ${fmt(row.s)} = <b class="${cls(isH ? cw.rows.at(-1).left : net)}">${fmt(isH ? cw.rows.at(-1).left : net)}</b> /week` +
+      (isH && (row.e || row.s) ? `<div class="small">Each line: ${fund.filter(x => x.pct).map(x => `${x.name} ${x.pct}%`).join(' · ')}</div>` : '') +
       (row.take ? `<div class="small">To shared: <span class="neg">${fmt(-row.take)}</span> /week</div>` : '') + `</div></div>`;
   }
+  $('#addPerson').hidden = people().length >= 2;
   const track = $('#track'), idx = curIndex();
   track.innerHTML = html; track.scrollLeft = idx * track.clientWidth; updatePos();
 
@@ -417,7 +430,7 @@ $('#prev').onclick = () => go(-1);
 $('#next').onclick = () => go(1);
 $('#period').innerHTML = PERIODS.map((p, i) => opt(i, p[0])).join('');
 $('#period').onchange = e => { state.period = +e.target.value; render(); };
-$('#addPerson').onclick = () => { if (people().length >= 8) return alert('Max 8 people'); people().push({ id: uid(), init: '', pct: 0 }); render(); };
+$('#addPerson').onclick = () => { if (people().length >= 2) return alert('Max 2 people'); people().push({ id: uid(), init: '', pct: 0 }); render(); };
 $('#shareBtn').onclick = async () => {
   const url = location.href, msg = $('#shareMsg');
   try { await navigator.share({ url }); msg.textContent = 'shared'; } catch { await navigator.clipboard.writeText(url); msg.textContent = 'link copied'; }
