@@ -37,9 +37,15 @@ const esc = t => t.replace(/-/g, '\\-');
 function shorten(html) {
   const count = (re) => (html.match(re) || []).length;
   const cmap = Object.fromEntries(CLASSES.map((c, i) => [c, short(i)])), alt = CLASSES.map(esc).join('|');
-  // quoted lists made only of class names (class attributes, classList calls, selector strings)
-  const listRe = new RegExp(`(?<!(?:id|for|name|type|title|placeholder|value|data-\\w+)=)(["'])( ?(?:${alt})(?: (?:${alt}))* ?)\\1`, 'g');
-  html = html.replace(listRe, (m, q, list) => q + list.replace(new RegExp(`(?<![\\w-])(?:${alt})(?![\\w-])`, 'g'), w => cmap[w]) + q);
+  const words = t => t.replace(new RegExp(`(?<![\\w-])(?:${alt})(?![\\w-])`, 'g'), w => cmap[w]);
+  // class names are renamed only where they are structurally classes:
+  // 1. plain class attributes:            class="a b"
+  html = html.replace(/class="([^"$]*)"/g, (m, v) => `class="${words(v)}"`);
+  // 2. templated class attributes:        class="${x ? 'a b' : 'a'}${y ? ' c' : ''}"  (string literals inside the braces)
+  html = html.replace(/class="((?:\$\{[^}]*\})+)"/g, (m, v) => `class="${v.replace(/(["'])([^"']*)\1/g, (q, d, t) => d + words(t) + d)}"`);
+  // 3. classList calls:                   classList.add("a")
+  html = html.replace(/(classList\.\w+\()(["'])([^"']*)\2/g, (m, pre, d, t) => pre + d + words(t) + d);
+  // 4. selectors, in CSS and JS strings:  .a
   CLASSES.forEach(c => {
     const re = new RegExp(`(?<![\\w$)\\]])\\.${esc(c)}(?![\\w-])`, 'g');
     if (!count(re)) throw new Error('class selector not found: ' + c);

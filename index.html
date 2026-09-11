@@ -300,7 +300,7 @@ function calc(days = PERIODS[state.period][1]) {
 // ---------- render ----------
 const $ = s => document.querySelector(s);
 const fmt = n => (n < 0 ? '-' : '') + Math.abs(n).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-const cls = n => n < 0 ? 'neg' : 'pos';
+const cls = n => ` class="${n < 0 ? 'neg' : 'pos'}"`;
 const opt = (v, label, on) => `<option value="${v}"${on ? ' selected' : ''}>${label}</option>`;
 const swatch = c => `<span style="display:inline-block;width:12px;height:12px;background:${c};vertical-align:middle"></span>`;
 const sortMode = { i: 0, e: 0, s: 0 }; // view only: 0 as entered, 1 highest first, 2 lowest first
@@ -353,7 +353,7 @@ function render() {
       // shared: each person's own remainder, their contribution to the shared shortfall in brackets, then the shared lines, then what the household has left
       (isH ? cw.rows.filter(r => !r.isH && !r.isTotal).map(r => `${r.name} ${fmt(r.i - r.e - r.s)} (${fmt(-r.take)})`).join(' + ') : '') +
       `<span class="sh">${[['Income', row.i, ' + '], ['expenses', row.e, ' &minus; '], ['savings', row.s, ' &minus; ']].filter(t => t[1]).map(t => `${t[2]}${t[0]} ${fmt(t[1])}`).join('').replace(/^ \+ /, isH ? ' + ' : '')}</span>` +
-      ` = <b class="${cls(isH ? cw.rows.at(-1).left : net)}">${fmt(isH ? cw.rows.at(-1).left : net)}</b> /week` +
+      ` = <b${cls(isH ? cw.rows.at(-1).left : net)}>${fmt(isH ? cw.rows.at(-1).left : net)}</b> /week` +
       (isH && (row.e || row.s) ? `<div class="small">Each line: ${fund.filter(x => x.pct).map(x => `${x.name} ${x.pct}%`).join(' · ')}</div>` : '') +
       (row.take ? `<div class="small">To shared: <span class="neg">${fmt(-row.take)}</span> /week</div>` : '') + `</div></div>`;
   }
@@ -363,7 +363,7 @@ function render() {
 
   const bar = c => c ? ` style="border-left:6px solid ${c}"` : '', perLabel = 'per ' + PERIODS[state.period][0].toLowerCase();
   $('#forecast').innerHTML = `<tr><th>Bucket</th><th>Income</th><th>Expenses</th><th>Savings</th><th>Household share</th><th>Left over</th></tr>` +
-    c.rows.map(r => `<tr class="${r.isTotal ? 'total' : ''}${!r.isH && !r.isTotal && r.left < 0 ? ' red' : ''}"><td${bar(r.colour)}>${r.name}</td><td>${fmt(r.i)}</td><td>${fmt(r.e)}</td><td>${fmt(r.s)}</td><td>${r.isTotal || r.isH ? '' : fmt(r.take)}</td><td class="${cls(r.left)}">${fmt(r.left)}</td></tr>`).join('') +
+    c.rows.map(r => `<tr class="${r.isTotal ? 'total' : ''}${!r.isH && !r.isTotal && r.left < 0 ? ' red' : ''}"><td${bar(r.colour)}>${r.name}</td><td>${fmt(r.i)}</td><td>${fmt(r.e)}</td><td>${fmt(r.s)}</td><td>${r.isTotal || r.isH ? '' : fmt(r.take)}</td><td${cls(r.left)}>${fmt(r.left)}</td></tr>`).join('') +
     `<tr><td colspan="6" class="small">${perLabel}</td></tr>`;
   // every savings line across all buckets for the view period, largest first
   const sv = state.l.s.map(x => ({ x, amt: per(x, c.days), p: people().find(q => q.id === x.owner) })).sort((a, b) => b.amt - a.amt);
