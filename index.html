@@ -49,7 +49,7 @@
   .w-amt { width: 66px; } .w-conv { width: 64px; } .w-del { width: 34px; }
   td select, td input { width: 100%; }
   .sortable { cursor: pointer; user-select: none; }
-  .splitopts { display: grid; grid-template-columns: auto auto 1fr; gap: 4px 8px; align-items: center; margin: 4px 0 8px; }
+  .splitopts { display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; align-items: center; margin: 4px 0 8px; }
   .tagcell { display: flex; align-items: center; gap: 4px; }
   .tagcell select { flex: 1; min-width: 0; }
   .drag { cursor: grab; touch-action: none; user-select: none; color: var(--muted); padding: 0 2px; }
@@ -233,12 +233,12 @@ const COLOURS = 'Blue:#1e88e5,Purple:#8e24aa,Green:#43a047,Orange:#fb8c00,Red:#e
 // tag lists as "Group:name,name;Group:name" -> [[group, name], ...]. Index 0 is always Other. Max 64 per list.
 const parseTags = s => s.split(';').flatMap(g => { const [grp, names] = g.split(':'); return names.split(',').map(n => [grp, n]); });
 const TAGS = {
-  i: parseTags('Other:Other;Work:Salary,Wages,Bonus,Overtime,Side hustle,Freelance,Business;Passive:Rent received,Board received,Dividends,Interest;Other:Government payment,Child support,Pension,Scholarship,Gift,Sale of stuff'),
-  e: parseTags('Other:Other,Buffer;Housing:Rent,Mortgage,Rates,Body corp,Home insurance,Contents insurance;Utilities:Electricity,Gas,Water,Internet,Mobile;Food:Groceries,Eating out,Coffee,Alcohol,Takeaway;Transport:Car loan,Car insurance,Car rego,Fuel,Car maintenance,Public transport,Parking;Health:Health insurance,Doctor,Dentist,Pharmacy,Gym,Sport;Lifestyle:Streaming,Subscriptions,AI tools,Hobbies,Dance classes,Clothes,Haircut,Personal care,Fun money;Family:Kids,Childcare,School,Pets,Vet,Gifts,Donations;Travel:Holidays,Flights,Travel insurance;Home:Furniture,Appliances,Repairs,Cleaning,Garden;Finance:Life insurance,Income protection,Credit card,Personal loan,Student loan,Tax,Fees,Investing,Savings transfer'),
+  i: parseTags('Other:Other;Work:Salary,Wages,Bonus,Overtime,Project,Freelance,Business;Passive:Rent,Board,Dividends,Interest;Other:Government payment,Child support,Pension,Scholarship,Gift,Sale'),
+  e: parseTags('Other:Other,Buffer;Housing:Rent,Mortgage,Rates,Body corp;Insurance:Home,Contents,Car,Health,Life,Income,Travel;Utilities:Electricity,Gas,Water,Internet,Mobile;Food:Groceries,Restaurant,Coffee,Alcohol,Takeaway;Transport:Car loan,Car rego,Fuel,Car maintenance,Public transport,Parking;Health:Doctor,Dentist,Pharmacy,Gym,Sport;Lifestyle:Streaming,Subscriptions,AI,Hobbies,Clothes,Haircut,Personal care,Fun money;Family:Kids,Childcare,School,Pets,Vet,Gifts,Donations;Travel:Holidays,Flights;Home:Furniture,Appliances,Repairs,Cleaning,Garden;Finance:Credit card,Personal loan,Student loan,Tax,Fees,Investing,Savings transfer'),
   s: parseTags('Other:Other;Safety:Emergency fund,Debt payoff;Big:House deposit,Car,Wedding,Renovation,Investment;Fun:Holiday,Tech,Furniture,Hobby gear;Life:Education,Baby,Moving,Gift;Passive:Investing,Retirement,Term deposit'),
 };
 // monochrome glyph per group (U+FE0E forces text presentation)
-const ICON = { Other: '·', Work: '⚙︎', Passive: '%', Housing: '⌂', Utilities: '⚡︎', Food: '☕︎', Transport: '⛽︎', Health: '✚', Lifestyle: '♫', Family: '☺︎', Travel: '✈︎', Home: '⚒︎', Finance: '⚖︎', Safety: '☂︎', Big: '▲', Fun: '★', Life: '✿' };
+const ICON = { Other: '·', Work: '⚙︎', Passive: '%', Housing: '⌂', Utilities: '⚡︎', Food: '☕︎', Transport: '⛽︎', Health: '✚', Lifestyle: '♫', Family: '☺︎', Travel: '✈︎', Home: '⚒︎', Finance: '⚖︎', Safety: '⚓︎', Insurance: '☂︎', Big: '▲', Fun: '★', Life: '✿' };
 
 // amount per week, 10 bits: scale bit (x1 / x10) + 9-bit mantissa. Exact to $1 up to 511, to $10 up to 5110.
 const AMT_MAX = 5110;
@@ -318,8 +318,7 @@ function lineTable(kind, owner) {
   return html + (note && items.some(x => x.id === note.id) ? `<div class="small">${note.text}</div>` : '');
 }
 function splitTable(share) {
-  const opts = [['Equal', 'Straight split between people'], ['Income', "In proportion to each person's income"], ['Custom', "Set each person's share"]];
-  let html = `<div class="splitopts">` + opts.map((o, i) => `<input type="radio" id="split${i}" name="split" value="${i}"${state.split === i ? ' checked' : ''}><label for="split${i}"><b>${o[0]}</b></label><span class="small">${o[1]}</span>`).join('') + `</div><table><tr><th>Who</th><th class="w-amt">Share %</th></tr>`;
+  let html = `<div class="splitopts">` + ['Equal', 'Income', 'Custom'].map((o, i) => `<input type="radio" id="split${i}" name="split" value="${i}"${state.split === i ? ' checked' : ''}><label for="split${i}"><b>${o}</b></label>`).join('') + `</div><table><tr><th>Who</th><th class="w-amt">Share %</th></tr>`;
   for (const p of people()) html += `<tr><td>${swatch(pcol(p))} ${pname(p)}</td><td><input type="number" data-f="pct" data-pid="${p.id}" min="0" max="100" value="${state.split === 2 ? p.pct : share[p.id]}"${state.split === 2 ? '' : ' disabled'}></td></tr>`;
   return html + '</table>';
 }
@@ -333,7 +332,7 @@ function render() {
     const sheets = [...(isH ? [() => splitTable(cw.share)] : []), ...KINDS.map(k => () => lineTable(k, o))];
     const net = row.i - row.e - row.s;
     html += `<div class="col" data-owner="${o}" style="border-color:${isH ? 'var(--strong)' : pcol(p)}"><h3>` +
-      (isH ? 'Shared / Household' : `${swatch(pcol(p))} <input type="text" data-f="init" maxlength="2" placeholder="${COLOURS[pidx(p)][0]}" value="${p.init}" title="initials" style="width:3em;text-transform:uppercase"> <button type="button" data-act="delPerson">x</button>`) +
+      (isH ? 'Shared' : `${swatch(pcol(p))} <input type="text" data-f="init" maxlength="2" placeholder="${COLOURS[pidx(p)][0]}" value="${p.init}" title="initials" style="width:3em;text-transform:uppercase"> <button type="button" data-act="delPerson">x</button>`) +
       `</h3><div class="tabs">${tabs.map((n, i) => `<button type="button" data-tab="${i}"${t === i ? ' class="on"' : ''}>${n}</button>`).join('')}</div><div class="sheet">${sheets[t]()}</div>` +
       `<div class="summary">Income ${fmt(row.i)} &minus; expenses ${fmt(row.e)} &minus; savings ${fmt(row.s)} = <b class="${cls(net)}">${fmt(net)}</b> /week` +
       (row.take ? `<div class="small">Share of household net: <span class="neg">${fmt(row.take)}</span> /week</div>` : '') + `</div></div>`;
