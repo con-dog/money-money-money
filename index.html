@@ -198,11 +198,17 @@ function tagSelect(tags, val) {
 let state = defaultState();
 function defaultState() {
   // split: 0 equal, 1 proportional to income, 2 custom (people[i].pct, whole percents summing to 100)
-  return { period: 0, split: 0, people: [{ id: uid(), pct: 50 }, { id: uid(), pct: 50 }], incomes: [], expenses: [], savings: [] };
+  return { period: 0, split: 0, people: [{ id: uid(), init: '', pct: 50 }, { id: uid(), init: '', pct: 50 }], incomes: [], expenses: [], savings: [] };
 }
 function uid() { return Math.random().toString(36).slice(2, 7); }
 const pidx = p => state.people.findIndex(q => q.id === p.id);
-const pname = p => COLOURS[pidx(p)][0];
+const cleanInit = v => (v || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2);
+// label: initials if set (with (2), (3) for duplicates), else the colour name
+function pname(p) {
+  if (!p.init) return COLOURS[pidx(p)][0];
+  const same = state.people.filter(q => q.init === p.init), k = same.indexOf(p);
+  return p.init + (k > 0 ? ` (${k + 1})` : '');
+}
 const pcol = p => COLOURS[pidx(p)][1];
 const lineAmt = it => amtDecode(it.code);
 const setLineAmt = (it, weekly, isExp) => { it.code = amtEncode(weekly, isExp); };
@@ -305,7 +311,7 @@ function render() {
     const isH = col.id === 'H';
     const row = cw.rows.find(r => isH ? r.isH : r.name === col.name && !r.isH) || { income: 0, expense: 0, saving: 0, left: 0 };
     html += `<div class="col" data-owner="${col.id}" style="border-color:${isH ? 'var(--strong)' : pcol(col)}"><h3>` +
-      (isH ? esc(col.name) : `<span style="display:inline-block;width:14px;height:14px;background:${pcol(col)};vertical-align:middle"></span> ${esc(col.name)} ` +
+      (isH ? esc(col.name) : `<span style="display:inline-block;width:14px;height:14px;background:${pcol(col)};vertical-align:middle"></span> <input type="text" data-f="init" maxlength="2" placeholder="${COLOURS[pidx(col)][0]}" value="${esc(col.init || '')}" title="initials" style="width:3em;text-transform:uppercase"> ` +
         `<button type="button" data-act="delPerson">x</button>`) + `</h3>` +
       `<div class="tabs">` + (isH ? ['Split', 'Income', 'Expenses', 'Savings'] : ['Income', 'Expenses', 'Savings']).map((t, i) => `<button type="button" data-tab="${i}" class="${(activeTab[col.id] || 0) === i ? 'on' : ''}">${t}</button>`).join('') + `</div><div class="sheet">` +
       [...(isH ? [splitTable(cw.share)] : []),
@@ -339,6 +345,7 @@ function render() {
 // ---------- events ----------
 document.body.addEventListener('input', e => {
   const t = e.target, f = t.dataset.f; if (!f) return;
+  if (f === 'init') { state.people.find(p => p.id === t.closest('.col').dataset.owner).init = cleanInit(t.value); updateLink(); return; }
   const tr = t.closest('tr'), table = t.closest('table'), kind = table.dataset.kind;
   const item = state[kind].find(x => x.id === tr.dataset.id); if (!item) return;
   if (f === 'amt' || f === 'conv' || f === 'pct') return; // committed on change
@@ -348,6 +355,7 @@ document.body.addEventListener('input', e => {
 document.body.addEventListener('change', e => {
   const t = e.target, f = t.dataset.f;
   if (t.name === 'split') { state.split = Number(t.value); render(); return; }
+  if (f === 'init') { render(); return; }
   if (f === 'pct') { setPct(t.dataset.pid, t.value); render(); return; }
   if (f === 'amt' || f === 'conv') {
     const tr = t.closest('tr'), table = t.closest('table'), kind = table.dataset.kind;
@@ -426,10 +434,10 @@ document.body.addEventListener('pointerdown', e => {
 });
 $('#period').innerHTML = PERIODS.map((p, i) => `<option value="${i}">${p[0]}</option>`).join('');
 $('#period').onchange = e => { state.period = Number(e.target.value); render(); };
-$('#addPerson').onclick = () => { if (state.people.length >= MAX_PEOPLE) return alert(`Max ${MAX_PEOPLE} people`); state.people.push({ id: uid(), pct: 0 }); render(); };
+$('#addPerson').onclick = () => { if (state.people.length >= MAX_PEOPLE) return alert(`Max ${MAX_PEOPLE} people`); state.people.push({ id: uid(), init: '', pct: 0 }); render(); };
 
 // ---------- bit-packed serialisation ----------
-// header: ver4 npeople-1 3 split2 [pct7 per person if custom]. Colours come from position. View period is not encoded.
+// header: ver4 npeople-1 3 split2, then per person: initials 2x5 bits (26 = blank) [pct7 if custom]. Colours come from position. View period is not encoded.
 // per owner (H, then people in order): ninc4, lines; nexp5, lines; nsav4, lines
 // line: tag6 code10 (scale1 + mantissa9) = 16 bits exactly
 class BitWriter {
@@ -444,7 +452,7 @@ class BitReader {
 function encode(s) {
   const bw = new BitWriter();
   bw.w(VERSION, 4); bw.w(s.people.length - 1, 3); bw.w(s.split, 2);
-  if (s.split === 2) for (const p of s.people) bw.w(Math.max(0, Math.min(100, Math.round(p.pct) || 0)), 7);
+  for (const p of s.people) { const init = cleanInit(p.init); for (let i = 0; i < 2; i++) bw.w(init[i] ? init.charCodeAt(i) - 65 : 26, 5); if (s.split === 2) bw.w(Math.max(0, Math.min(100, Math.round(p.pct) || 0)), 7); }
   const line = it => { bw.w(it.tag, 6); bw.w(it.code, 10); };
   for (const o of ['H', ...s.people.map(p => p.id)]) {
     const inc = s.incomes.filter(i => i.owner === o).slice(0, MAX_INC), exp = s.expenses.filter(e => e.owner === o).slice(0, MAX_EXP), sav = s.savings.filter(v => v.owner === o).slice(0, MAX_SAV);
@@ -457,9 +465,11 @@ function decode(bytes) {
   const v = br.r(4); if (v !== VERSION) throw new Error('unknown version ' + v);
   s.period = viewPrefs().period;
   const np = br.r(3) + 1; s.people = []; s.split = br.r(2);
-  for (let i = 0; i < np; i++) s.people.push({ id: uid(), pct: 0 });
-  if (s.split === 2) for (const p of s.people) p.pct = br.r(7);
-  else s.people.forEach((p, i) => { p.pct = i === np - 1 ? 100 - Math.floor(100 / np) * (np - 1) : Math.floor(100 / np); });
+  for (let i = 0; i < np; i++) {
+    let init = ''; for (let k = 0; k < 2; k++) { const c = br.r(5); if (c < 26) init += String.fromCharCode(65 + c); }
+    const p = { id: uid(), init, pct: 0 }; if (s.split === 2) p.pct = br.r(7); s.people.push(p);
+  }
+  if (s.split !== 2) s.people.forEach((p, i) => { p.pct = i === np - 1 ? 100 - Math.floor(100 / np) * (np - 1) : Math.floor(100 / np); });
   s.incomes = []; s.expenses = []; s.savings = [];
   const line = owner => ({ id: uid(), owner, tag: br.r(6), code: br.r(10) });
   for (const o of ['H', ...s.people.map(p => p.id)]) {
@@ -490,7 +500,7 @@ function updateLink() {
     } catch (e) { $('#qr').innerHTML = `<span class="small">QR unavailable</span>`; }
   }, 150);
 }
-function save() { try { localStorage.setItem('budget15', JSON.stringify(state)); localStorage.setItem('viewPrefs', JSON.stringify({ period: state.period })); } catch {} }
+function save() { try { localStorage.setItem('budget16', JSON.stringify(state)); localStorage.setItem('viewPrefs', JSON.stringify({ period: state.period })); } catch {} }
 function viewPrefs() { try { const p = JSON.parse(localStorage.getItem('viewPrefs')); return p && PERIODS[p.period] ? p : { period: 0 }; } catch { return { period: 0 }; } }
 
 // ---------- diff ----------
@@ -500,7 +510,8 @@ function diff(a, b) {
   const splitName = s => ['equal', 'income', 'custom ' + s.people.map(p => p.pct + '%').join('/')][s.split || 0];
   if (splitName(a) !== splitName(b)) out.push(`split: ${splitName(a)} → ${splitName(b)}`);
   const n = Math.max(a.people.length, b.people.length);
-  const ownerName = i => i === 0 ? 'Household' : (COLOURS[i - 1] ? COLOURS[i - 1][0] : `Person ${i}`);
+  const ownerName = i => i === 0 ? 'Household' : ((b.people[i - 1] || a.people[i - 1] || {}).init || (COLOURS[i - 1] ? COLOURS[i - 1][0] : `Person ${i}`));
+  a.people.forEach((p, i) => { const q = b.people[i]; if (q && (p.init || '') !== (q.init || '')) out.push(`${COLOURS[i][0]}: initials ${p.init || '(none)'} → ${q.init || '(none)'}`); });
   const lines = (s, kind, i) => { const o = i === 0 ? 'H' : (s.people[i - 1] || {}).id; return (s[kind] || []).filter(x => x.owner === o); };
   for (let i = 0; i <= n; i++) for (const kind of ['incomes', 'expenses', 'savings']) {
     const tags = TAGS[kind], la = lines(a, kind, i), lb = lines(b, kind, i);
@@ -531,7 +542,7 @@ function showIncoming(local, incoming, hash) {
 function load() {
   const hash = location.hash.slice(1);
   let local = null;
-  try { const s = localStorage.getItem('budget15'); if (s) local = JSON.parse(s); } catch {}
+  try { const s = localStorage.getItem('budget16'); if (s) local = JSON.parse(s); } catch {}
   if (hash) {
     let incoming;
     try { incoming = decode(b32.dec(hash)); } catch (e) { alert('Could not read budget from link: ' + e.message); incoming = null; }
@@ -542,6 +553,7 @@ function load() {
   }
   if (local) { state = local; return; }
   state = defaultState();
+  state.people[0].init = 'MB'; state.people[1].init = 'CT';
   const [m, c] = state.people.map(p => p.id);
   const inc = (owner, tag, amt) => state.incomes.push({ id: uid(), owner, tag: tagIndex(INCOME_TAGS, tag), code: amtEncode(amt, false) });
   const exp = (owner, tag, amt) => state.expenses.push({ id: uid(), owner, tag: tagIndex(EXPENSE_TAGS, tag), code: amtEncode(amt, true) });
