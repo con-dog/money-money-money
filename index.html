@@ -310,7 +310,7 @@ function lineTable(kind, owner) {
   let html = `<table data-kind="${kind}" data-owner="${owner}"><tr><th>${name}</th><th class="w-amt sortable" data-sort="${kind}" title="sort">$/week${['', ' ▼', ' ▲'][m]}</th><th class="w-conv">period</th><th class="w-del"></th></tr>`;
   for (const x of rows) {
     const a = amtDecode(x.code), n = note && note.id === x.id;
-    html += `<tr data-id="${x.id}"><td><div class="tagcell"><span class="drag${m ? ' off' : ''}" data-drag title="${m ? 'clear sort to reorder' : 'drag to reorder'}">⠿</span><span class="gi" title="${TAGS[kind][x.tag][0]}">${ICON[TAGS[kind][x.tag][0]]}</span>${tagSelect(kind, x.tag)}</div></td>` +
+    html += `<tr data-id="${x.id}"><td><div class="tagcell"><span class="${m ? 'drag off' : 'drag'}" data-drag title="${m ? 'clear sort to reorder' : 'drag to reorder'}">⠿</span><span class="gi" title="${TAGS[kind][x.tag][0]}">${ICON[TAGS[kind][x.tag][0]]}</span>${tagSelect(kind, x.tag)}</div></td>` +
       `<td><input type="number" data-f="amt" value="${a}" min="0" max="${AMT_MAX}" step="${a > 511 ? 10 : 1}"${n ? ' class="snapped"' : ''}></td>` +
       `<td><select data-f="conv">${CONV.map((c, i) => opt(i, c[0], !i)).join('')}</select></td><td><button type="button" data-act="del">x</button></td></tr>`;
   }
@@ -374,15 +374,15 @@ document.body.addEventListener('change', e => {
   render();
 });
 document.body.addEventListener('click', e => {
-  const t = e.target, d = t.dataset;
-  if (d.sort) sortMode[d.sort] = (sortMode[d.sort] + 1) % 3;
-  else if (d.tab) activeTab[t.closest('.col').dataset.owner] = +d.tab;
-  else if (d.act === 'add') { const { kind, owner } = ctx(t); state.l[kind].push({ id: uid(), owner, tag: kind === 'e' ? 2 : 1, code: 0 }); }
-  else if (d.act === 'del') { const { kind, item } = ctx(t); state.l[kind] = state.l[kind].filter(x => x !== item); }
-  else if (d.act === 'delPerson') {
+  const t = e.target, act = t.dataset.act;
+  if (t.dataset.sort) sortMode[t.dataset.sort] = (sortMode[t.dataset.sort] + 1) % 3;
+  else if (t.dataset.tab) activeTab[t.closest('.col').dataset.owner] = +t.dataset.tab;
+  else if (act === 'add') { const { kind, owner } = ctx(t); state.l[kind].push({ id: uid(), owner, tag: kind === 'e' ? 2 : 1, code: 0 }); }
+  else if (act === 'del') { const { kind, item } = ctx(t); state.l[kind] = state.l[kind].filter(x => x !== item); }
+  else if (act === 'delPerson') {
     const id = t.closest('.col').dataset.owner; if (!confirm('Remove this person and all their lines?')) return;
     state.people = people().filter(p => p.id !== id); for (const k of KINDS) state.l[k] = state.l[k].filter(x => x.owner !== id);
-  } else if (d.go) { $(d.go).scrollIntoView({ behavior: 'smooth' }); return; }
+  } else if (t.dataset.go) { $(t.dataset.go).scrollIntoView({ behavior: 'smooth' }); return; }
   else return;
   render();
 });

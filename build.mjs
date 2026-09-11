@@ -24,6 +24,40 @@ writeFileSync('dist/index.min.html', out);
 //
 // The bytes live in a <script type=text/plain> decoded as windows-1252, which maps every byte to one character.
 // Four things the HTML parser would alter are escaped with 0x01: NUL, CR, the escape byte itself, and "</".
+// Shorten class, id and data-attribute names. The minifier can't touch these because they live in CSS and in
+// HTML strings, so they're renamed here by context: ".name" selectors, id="name" / #name, class attribute values
+// (plain string literals made only of class names), and data-name attributes with their dataset.name reads.
+const CLASSES = 'tagcell sortable splitopts summary sheet tabs small snapped dragging drag total red gi col off on neg pos arrow page w-amt w-conv w-del'.split(' ');
+const IDS = 'track pos nav prev next addPerson period forecast savsum incoming share qr shareBtn shareMsg page1 page2 page3 take keep dismiss bottom'.split(' ');
+const DATA = 'act tab sort drag go kind owner pid id f'.split(' ');
+const short = i => (i < 26 ? String.fromCharCode(97 + i) : 'a' + String.fromCharCode(71 + i)); // a..z, aA..
+const esc = t => t.replace(/-/g, '\\-');
+function shorten(html) {
+  const count = (re) => (html.match(re) || []).length;
+  const cmap = Object.fromEntries(CLASSES.map((c, i) => [c, short(i)])), alt = CLASSES.map(esc).join('|');
+  // quoted lists made only of class names (class attributes, classList calls, selector strings)
+  const listRe = new RegExp(`(?<!(?:id|for|name|type|title|placeholder|value)=)(["'])( ?(?:${alt})(?: (?:${alt}))* ?)\\1`, 'g');
+  html = html.replace(listRe, (m, q, list) => q + list.replace(new RegExp(`(?<![\\w-])(?:${alt})(?![\\w-])`, 'g'), w => cmap[w]) + q);
+  CLASSES.forEach(c => {
+    const re = new RegExp(`(?<![\\w$)\\]])\\.${esc(c)}(?![\\w-])`, 'g');
+    if (!count(re)) throw new Error('class selector not found: ' + c);
+    html = html.replace(re, '.' + cmap[c]);
+  });
+  IDS.forEach((id, i) => {
+    const n = 'i' + short(i), re1 = new RegExp(`#${id}(?![\\w-])`, 'g'), re2 = new RegExp(`id="${id}"`, 'g');
+    if (!count(re1) || !count(re2)) throw new Error('id not found: ' + id);
+    html = html.replace(re1, '#' + n).replace(re2, `id="${n}"`);
+  });
+  DATA.forEach((d, i) => {
+    const n = short(i), re1 = new RegExp(`data-${d}(?![\\w-])`, 'g'), re2 = new RegExp(`dataset\\.${d}(?![\\w])`, 'g');
+    if (!count(re1)) throw new Error('data attribute not found: ' + d);
+    html = html.replace(re1, 'data-' + n).replace(re2, 'dataset.' + n);
+  });
+  return html;
+}
+out = shorten(out);
+writeFileSync('dist/index.min.html', out);
+
 // zopfli (wasm, `npm i`) gives a few percent smaller deflate stream than zlib; fall back to zlib if it isn't installed
 let raw = deflateRawSync(Buffer.from(out, 'utf8'), { level: 9 });
 try { const zopfli = createRequire(import.meta.url)('@gfx/zopfli'); raw = Buffer.from(await zopfli.deflateAsync(Buffer.from(out, 'utf8'), { numiterations: 100 })); } catch { console.log('(zopfli not installed, using zlib)'); }
