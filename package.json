@@ -3,5 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": { "build": "node build.mjs" },
-  "devDependencies": { "@gfx/zopfli": "^1.0.15" }
+  "devDependencies": {
+    "@gfx/zopfli": "^1.0.15",
+    "csso-cli": "^4.0.2",
+    "html-minifier-terser": "^7.2.0",
+    "terser": "^5.31.0"
+  }
 }

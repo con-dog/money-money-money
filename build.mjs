@@ -22,11 +22,11 @@ writeFileSync('format.lock.json', JSON.stringify({ version, hash: formatHash }, 
 const run = (cmd, input) => execSync(cmd, { input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'inherit'] });
 
 // minify every <style> block; merge all <script> blocks into one so terser can mangle top-level names across them
-let out = src.replace(/<style>([\s\S]*?)<\/style>/g, (_, css) => `<style>${run('npx --yes csso-cli', css).trim()}</style>`);
+let out = src.replace(/<style>([\s\S]*?)<\/style>/g, (_, css) => `<style>${run('npx csso-cli', css).trim()}</style>`);
 const js = [...out.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]).join('\n');
-out = out.replace(/<script>[\s\S]*?<\/script>\s*/g, '').replace('</body>', `<script>${run('npx --yes terser -c passes=2 -m --toplevel', js).trim()}</script></body>`);
+out = out.replace(/<script>[\s\S]*?<\/script>\s*/g, '').replace('</body>', `<script>${run('npx terser -c passes=2 -m --toplevel', js).trim()}</script></body>`);
 // collapse whitespace between tags and drop HTML comments
-out = run('npx --yes html-minifier-terser --collapse-whitespace --remove-comments --conservative-collapse', out);
+out = run('npx html-minifier-terser --collapse-whitespace --remove-comments --conservative-collapse', out);
 
 mkdirSync('dist', { recursive: true });
 writeFileSync('dist/index.min.html', out);
